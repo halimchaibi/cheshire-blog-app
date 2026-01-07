@@ -47,7 +47,7 @@ create_author:
           "operation": "INSERT",
           "source": { "table": "authors" },
           "columns": [
-            { "field": "id", "function": "UUID()" },
+            { "field": "id", "function": "gen_random_uuid()" },
             { "field": "username", "param": "username" },
             { "field": "email", "param": "email" },
             { "field": "created_at", "function": "CURRENT_TIMESTAMP" }
@@ -291,7 +291,7 @@ create_article:
           "operation": "INSERT",
           "source": { "table": "articles" },
           "columns": [
-            { "field": "id", "function": "UUID()" },
+            { "field": "id", "function": "gen_random_uuid()" },
             { "field": "title", "param": "title" },
             { "field": "content", "param": "content" },
             { "field": "author_id", "param": "author_id" },
@@ -632,7 +632,7 @@ create_comment:
           "operation": "INSERT",
           "source": { "table": "comments" },
           "columns": [
-            { "field": "id", "function": "UUID()" },
+            { "field": "id", "function": "gen_random_uuid()" },
             { "field": "article_id", "param": "article_id" },
             { "field": "author_name", "param": "author_name" },
             { "field": "author_email", "param": "author_email", "nullable": true },
