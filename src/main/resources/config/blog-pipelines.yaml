@@ -47,7 +47,7 @@ create_author:
           "operation": "INSERT",
           "source": { "table": "authors" },
           "columns": [
-            { "field": "id", "function": "UUID()" },
+            { "field": "id", "function": "gen_random_uuid()" },
             { "field": "username", "param": "username" },
             { "field": "email", "param": "email" },
             { "field": "created_at", "function": "CURRENT_TIMESTAMP" }
@@ -291,7 +291,7 @@ create_article:
           "operation": "INSERT",
           "source": { "table": "articles" },
           "columns": [
-            { "field": "id", "function": "UUID()" },
+            { "field": "id", "function": "gen_random_uuid()" },
             { "field": "title", "param": "title" },
             { "field": "content", "param": "content" },
             { "field": "author_id", "param": "author_id" },
@@ -632,7 +632,7 @@ create_comment:
           "operation": "INSERT",
           "source": { "table": "comments" },
           "columns": [
-            { "field": "id", "function": "UUID()" },
+            { "field": "id", "function": "gen_random_uuid()" },
             { "field": "article_id", "param": "article_id" },
             { "field": "author_name", "param": "author_name" },
             { "field": "author_email", "param": "author_email", "nullable": true },
@@ -885,7 +885,8 @@ list_authors:
             { "field": "a.username", "alias": "username" },
             { "field": "a.email", "alias": "email" },
             { "field": "a.created_at", "alias": "created_at" },
-            { "field": "COUNT(art.id)", "alias": "article_count" }
+            { "field": "COUNT(DISTINCT art.id)", "alias": "article_count" },
+            { "field": "COUNT(DISTINCT c.id)", "alias": "comment_count" }
           ],
           "joins": [
             {
@@ -895,17 +896,91 @@ list_authors:
               "on": [
                 { "left": "a.id", "op": "=", "right": "art.author_id" }
               ]
+            },
+            {
+              "type": "LEFT",
+              "table": "comments",
+              "alias": "c",
+              "on": [
+                { "left": "art.id", "op": "=", "right": "c.article_id" }
+              ]
             }
           ],
           "filters": {
             "op": "AND",
             "conditions": [
-              { "field": "a.username", "op": "LIKE", "param": "username", "optional": true }
+              {
+                "op": "OR",
+                "conditions": [
+                  {
+                    "field": "a.username",
+                    "op": "ILIKE",
+                    "param": "search_author",
+                    "transform": {
+                      "type": "concat",
+                      "prefix": "%",
+                      "suffix": "%"
+                    },
+                    "optional": true
+                  },
+                  {
+                    "field": "a.email",
+                    "op": "ILIKE",
+                    "param": "search_author",
+                    "transform": {
+                      "type": "concat",
+                      "prefix": "%",
+                      "suffix": "%"
+                    },
+                    "optional": true
+                  }
+                ],
+                "optional": true
+              },
+              {
+                "op": "OR",
+                "conditions": [
+                  {
+                    "expression": "to_tsvector('english', art.title) @@ plainto_tsquery(:search_content)",
+                    "optional": true
+                  },
+                  {
+                    "expression": "to_tsvector('english', art.content) @@ plainto_tsquery(:search_content)",
+                    "optional": true
+                  }
+                ],
+                "optional": true
+              },
+              {
+                "field": "a.created_at",
+                "op": ">=",
+                "param": "created_after",
+                "optional": true
+              },
+              {
+                "field": "a.created_at",
+                "op": "<=",
+                "param": "created_before",
+                "optional": true
+              },
+              {
+                "expression": "COUNT(DISTINCT c.id) >= :min_comments",
+                "optional": true
+              },
+              {
+                "expression": "COUNT(DISTINCT art.id) >= :min_articles",
+                "optional": true
+              }
             ]
-          },
+        },
           "groupBy": ["a.id", "a.username", "a.email", "a.created_at"],
           "sort": [
-            { "field": "a.created_at", "direction": "DESC" }
+            {
+              "field": "{param:sort_by,default:'comment_count'}",
+              "direction": "{param:sort_order,default:'DESC'}"
+            },
+            { "field": "article_count", "direction": "DESC" },
+            { "field": "a.username", "direction": "ASC" }
           ],
           "limit": { "param": "limit", "default": 50 },
           "offset": { "calculated": "offset", "default": 0 }
@@ -1253,20 +1328,48 @@ list_articles:
           "filters": {
             "op": "AND",
             "conditions": [
-              { "field": "art.author_id", "op": "=", "param": "author", "optional": true },
+              {
+                "expression": "art.author_id = CAST(:author AS uuid)",
+                "optional": true
+              },
+              {
+                "expression": "art.id = CAST(:article AS uuid)",
+                "optional": true
+              },
               { "field": "art.is_published", "op": "=", "param": "published", "optional": true },
               {
                 "op": "OR",
                 "conditions": [
-                  { "field": "art.title", "op": "ILIKE", "param": "search", "optional": true },
-                  { "field": "art.content", "op": "ILIKE", "param": "search", "optional": true }
+                  {
+                    "expression": "art.title ILIKE CONCAT('%', :search, '%')",
+                    "optional": true
+                  },
+                  {
+                    "expression": "art.content ILIKE CONCAT('%', :search, '%')",
+                    "optional": true
+                  },
+                  {
+                    "expression": "art.title ~* :search_regex",
+                    "optional": true
+                  },
+                  {
+                    "expression": "art.content ~* :search_regex",
+                    "optional": true
+                  },
+                  {
+                    "expression": "to_tsvector('english', art.title) @@ plainto_tsquery(:search_fulltext)",
+                    "optional": true
+                  },
+                  {
+                    "expression": "to_tsvector('english', art.content) @@ plainto_tsquery(:search_fulltext)",
+                    "optional": true
+                  }
                 ],
                 "optional": true
               }
             ]
           },
-          "groupBy": ["art.id", "art.title", "art.content", "art.author_id", "art.is_published", 
-                      "art.publish_date", "art.created_at", "art.updated_at", "a.username"],
+          "groupBy": ["art.id", "art.title", "art.content", "art.author_id", "art.is_published", "art.publish_date", "art.created_at", "art.updated_at", "a.username"],
           "sort": [
             { "field": "{param:sort,default:'art.publish_date'}", "direction": "DESC" },
             { "field": "art.created_at", "direction": "DESC" }
