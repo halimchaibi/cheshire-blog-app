@@ -1,0 +1,41 @@
+# ==========================================================================
+# Blog MCP stdio Configuration
+# Purpose:
+#   Enable the Blog application to be exposed via MCP stdio protocol
+# ==========================================================================
+
+imports:
+  - blog-application.yaml
+
+# Override capabilities to enable only stdio MCP
+capabilities:
+  blogstdio:
+    name: blogstdio
+    description: Blog stdio MCP API
+    domain: blog
+    exposure: stdio-mcp
+    transport: jetty
+    sources:
+      - blog-db
+    query-engine: jdbc
+    actions-specification-file: blog-actions.yaml
+    pipelines-definition-file: blog-pipelines.yaml
+
+# Override exposures to enable only stdio MCP
+exposures:
+  stdio-mcp:
+    type: mcp-stdio
+    enabled: true
+    binding: mcp-stdio
+    execution: "sync"
+    config:
+      security:
+        authentication:
+          type: "none"
+
+  rest-api:
+    enabled: false
+
+  streamable-mcp:
+    enabled: false
+

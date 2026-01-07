@@ -1,0 +1,2084 @@
+# ==============================================================================
+# AUTHOR OPERATIONS
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# CREATE AUTHOR - Insert new author record
+# ------------------------------------------------------------------------------
+create_author:
+  uri: blog://authors/create
+  description: >
+    Create a new author record in the blog system. Authors are users who can
+    write articles. Each author must have a unique username and email address.
+  input: io.cheshire.spi.pipeline.MaterializedInput
+  pipeline:
+    preprocess:
+      - name: inputProcessor
+        type: transformer
+        template: |
+          {
+            "validation": {
+              "required": ["username", "email"],
+              "rules": {
+                "username": {
+                  "type": "string",
+                  "minLength": 3,
+                  "maxLength": 255,
+                  "pattern": "^[a-zA-Z0-9_]+$"
+                },
+                "email": {
+                  "type": "string",
+                  "format": "email",
+                  "maxLength": 255
+                }
+              }
+            }
+          }
+        implementation: io.blog.pipeline.BlogInputProcessor
+        description: >
+          Validates the username and email are provided with proper format
+          and length constraints. Ensures username contains only alphanumeric
+          characters and underscores.
+    process:
+      name: executor
+      type: executor
+      template: |
+        {
+          "operation": "INSERT",
+          "source": { "table": "authors" },
+          "columns": [
+            { "field": "id", "function": "UUID()" },
+            { "field": "username", "param": "username" },
+            { "field": "email", "param": "email" },
+            { "field": "created_at", "function": "CURRENT_TIMESTAMP" }
+          ],
+          "returning": ["id", "username", "email", "created_at"]
+        }
+      implementation: io.blog.pipeline.BlogExecutor
+      description: >
+        Inserts a new author record with auto-generated UUID and timestamp,
+        ensuring uniqueness constraints for username and email are maintained.
+    postprocess:
+      - name: outputProcessor
+        type: transformer
+        template: |
+          {
+            "format": "json",
+            "envelope": {
+              "success": true,
+              "resource": "author",
+              "operation": "create"
+            }
+          }
+        implementation: io.blog.pipeline.BlogOutputProcessor
+        description: >
+          Formats the newly created author record into a standardized JSON
+          response structure with metadata.
+  output: io.cheshire.spi.pipeline.MaterializedOutput
+
+# ------------------------------------------------------------------------------
+# UPDATE AUTHOR - Update existing author record
+# ------------------------------------------------------------------------------
+update_author:
+  uri: blog://authors/update
+  description: >
+    Update an existing author's information. This updates the author's username,
+    email, or both. Username and email must remain unique across all authors.
+  input: io.cheshire.spi.pipeline.MaterializedInput
+  pipeline:
+    preprocess:
+      - name: inputProcessor
+        type: transformer
+        template: |
+          {
+            "validation": {
+              "required": ["id"],
+              "rules": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "username": {
+                  "type": "string",
+                  "minLength": 3,
+                  "maxLength": 255,
+                  "pattern": "^[a-zA-Z0-9_]+$",
+                  "optional": true
+                },
+                "email": {
+                  "type": "string",
+                  "format": "email",
+                  "maxLength": 255,
+                  "optional": true
+                }
+              }
+            }
+          }
+        implementation: io.blog.pipeline.BlogInputProcessor
+        description: >
+          Validates that author ID is provided as UUID and that username/email
+          updates meet format requirements. At least one field must be provided.
+    process:
+      name: executor
+      type: executor
+      template: |
+        {
+          "operation": "UPDATE",
+          "source": { "table": "authors" },
+          "set": [
+            { "field": "username", "param": "username", "optional": true },
+            { "field": "email", "param": "email", "optional": true }
+          ],
+          "filters": {
+            "op": "AND",
+            "conditions": [
+              { "field": "id", "op": "=", "param": "id" }
+            ]
+          },
+          "returning": ["id", "username", "email", "created_at"]
+        }
+      implementation: io.blog.pipeline.BlogExecutor
+      description: >
+        Updates the author record matching the provided ID with the specified
+        fields. Only non-null parameters are included in the SET clause.
+    postprocess:
+      - name: outputProcessor
+        type: transformer
+        template: |
+          {
+            "format": "json",
+            "envelope": {
+              "success": true,
+              "resource": "author",
+              "operation": "update"
+            }
+          }
+        implementation: io.blog.pipeline.BlogOutputProcessor
+        description: >
+          Formats the updated author record into a standardized JSON response
+          structure indicating successful update.
+  output: io.cheshire.spi.pipeline.MaterializedOutput
+
+# ------------------------------------------------------------------------------
+# DELETE AUTHOR - Permanently remove author and their articles
+# ------------------------------------------------------------------------------
+delete_author:
+  uri: blog://authors/delete
+  description: >
+    Permanently remove an author from the blog system. Due to CASCADE
+    delete constraints, this will also remove all articles associated with
+    the author, which in turn removes all comments on those articles.
+  input: io.cheshire.spi.pipeline.MaterializedInput
+  pipeline:
+    preprocess:
+      - name: inputProcessor
+        type: transformer
+        template: |
+          {
+            "validation": {
+              "required": ["id"],
+              "rules": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            },
+            "checks": {
+              "confirmDeletion": true,
+              "cascadeWarning": true
+            }
+          }
+        implementation: io.blog.pipeline.BlogInputProcessor
+        description: >
+          Validates the author ID is provided as UUID and performs pre-deletion
+          checks to warn about cascaded deletions of articles and comments.
+    process:
+      name: executor
+      type: executor
+      template: |
+        {
+          "operation": "DELETE",
+          "source": { "table": "authors" },
+          "filters": {
+            "op": "AND",
+            "conditions": [
+              { "field": "id", "op": "=", "param": "id" }
+            ]
+          },
+          "returning": ["id", "username", "email"]
+        }
+      implementation: io.blog.pipeline.BlogExecutor
+      description: >
+        Deletes the author record matching the provided ID. CASCADE
+        constraints will automatically remove related articles and comments.
+    postprocess:
+      - name: outputProcessor
+        type: transformer
+        template: |
+          {
+            "format": "json",
+            "envelope": {
+              "success": true,
+              "resource": "author",
+              "operation": "delete",
+              "warning": "Related articles and comments were also removed due to CASCADE"
+            }
+          }
+        implementation: io.blog.pipeline.BlogOutputProcessor
+        description: >
+          Formats the deletion confirmation with details of the deleted author
+          and warning about cascaded deletions of articles and comments.
+  output: io.cheshire.spi.pipeline.MaterializedOutput
+
+# ==============================================================================
+# ARTICLE OPERATIONS
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# CREATE ARTICLE - Insert new article record
+# ------------------------------------------------------------------------------
+create_article:
+  uri: blog://articles/create
+  description: >
+    Create a new article in the blog system. Articles can be created as drafts
+    (is_published = false) or published immediately. Articles must be associated
+    with an existing author.
+  input: io.cheshire.spi.pipeline.MaterializedInput
+  pipeline:
+    preprocess:
+      - name: inputProcessor
+        type: transformer
+        template: |
+          {
+            "validation": {
+              "required": ["title", "content", "author_id"],
+              "rules": {
+                "title": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 255
+                },
+                "content": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "author_id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "is_published": {
+                  "type": "boolean",
+                  "default": false
+                },
+                "publish_date": {
+                  "type": "string",
+                  "format": "date-time",
+                  "optional": true
+                }
+              }
+            }
+          }
+        implementation: io.blog.pipeline.BlogInputProcessor
+        description: >
+          Validates that title, content, and author_id are provided with proper
+          constraints. Sets default values for optional fields.
+    process:
+      name: executor
+      type: executor
+      template: |
+        {
+          "operation": "INSERT",
+          "source": { "table": "articles" },
+          "columns": [
+            { "field": "id", "function": "UUID()" },
+            { "field": "title", "param": "title" },
+            { "field": "content", "param": "content" },
+            { "field": "author_id", "param": "author_id" },
+            { "field": "is_published", "param": "is_published", "default": false },
+            { "field": "publish_date", "param": "publish_date", "nullable": true },
+            { "field": "created_at", "function": "CURRENT_TIMESTAMP" },
+            { "field": "updated_at", "function": "CURRENT_TIMESTAMP" }
+          ],
+          "returning": ["id", "title", "content", "author_id", "is_published", "publish_date", "created_at", "updated_at"]
+        }
+      implementation: io.blog.pipeline.BlogExecutor
+      description: >
+        Inserts a new article record with auto-generated UUID and timestamps.
+        Sets publish_date only if provided, otherwise NULL.
+    postprocess:
+      - name: outputProcessor
+        type: transformer
+        template: |
+          {
+            "format": "json",
+            "envelope": {
+              "success": true,
+              "resource": "article",
+              "operation": "create"
+            }
+          }
+        implementation: io.blog.pipeline.BlogOutputProcessor
+        description: >
+          Formats the newly created article record into a standardized JSON
+          response structure with metadata.
+  output: io.cheshire.spi.pipeline.MaterializedOutput
+
+# ------------------------------------------------------------------------------
+# UPDATE ARTICLE - Update existing article record
+# ------------------------------------------------------------------------------
+update_article:
+  uri: blog://articles/update
+  description: >
+    Update an existing article. This can update the title, content, publication
+    status, or publish date. The updated_at timestamp is automatically refreshed.
+  input: io.cheshire.spi.pipeline.MaterializedInput
+  pipeline:
+    preprocess:
+      - name: inputProcessor
+        type: transformer
+        template: |
+          {
+            "validation": {
+              "required": ["id"],
+              "rules": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "title": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 255,
+                  "optional": true
+                },
+                "content": {
+                  "type": "string",
+                  "minLength": 1,
+                  "optional": true
+                },
+                "is_published": {
+                  "type": "boolean",
+                  "optional": true
+                },
+                "publish_date": {
+                  "type": "string",
+                  "format": "date-time",
+                  "optional": true
+                }
+              }
+            }
+          }
+        implementation: io.blog.pipeline.BlogInputProcessor
+        description: >
+          Validates that article ID is provided as UUID and that any provided
+          updates meet format requirements. At least one field must be provided.
+    process:
+      name: executor
+      type: executor
+      template: |
+        {
+          "operation": "UPDATE",
+          "source": { "table": "articles" },
+          "set": [
+            { "field": "title", "param": "title", "optional": true },
+            { "field": "content", "param": "content", "optional": true },
+            { "field": "is_published", "param": "is_published", "optional": true },
+            { "field": "publish_date", "param": "publish_date", "optional": true },
+            { "field": "updated_at", "function": "CURRENT_TIMESTAMP" }
+          ],
+          "filters": {
+            "op": "AND",
+            "conditions": [
+              { "field": "id", "op": "=", "param": "id" }
+            ]
+          },
+          "returning": ["id", "title", "content", "author_id", "is_published", "publish_date", "created_at", "updated_at"]
+        }
+      implementation: io.blog.pipeline.BlogExecutor
+      description: >
+        Updates the article record matching the provided ID. Automatically
+        updates the updated_at timestamp regardless of which fields change.
+    postprocess:
+      - name: outputProcessor
+        type: transformer
+        template: |
+          {
+            "format": "json",
+            "envelope": {
+              "success": true,
+              "resource": "article",
+              "operation": "update"
+            }
+          }
+        implementation: io.blog.pipeline.BlogOutputProcessor
+        description: >
+          Formats the updated article record into a standardized JSON response
+          structure indicating successful update.
+  output: io.cheshire.spi.pipeline.MaterializedOutput
+
+# ------------------------------------------------------------------------------
+# DELETE ARTICLE - Permanently remove article and its comments
+# ------------------------------------------------------------------------------
+delete_article:
+  uri: blog://articles/delete
+  description: >
+    Permanently remove an article from the blog system. Due to CASCADE
+    delete constraints, this will also remove all comments associated with
+    the article.
+  input: io.cheshire.spi.pipeline.MaterializedInput
+  pipeline:
+    preprocess:
+      - name: inputProcessor
+        type: transformer
+        template: |
+          {
+            "validation": {
+              "required": ["id"],
+              "rules": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            },
+            "checks": {
+              "confirmDeletion": true,
+              "cascadeWarning": true
+            }
+          }
+        implementation: io.blog.pipeline.BlogInputProcessor
+        description: >
+          Validates the article ID is provided as UUID and performs pre-deletion
+          checks to warn about cascaded deletions of comments.
+    process:
+      name: executor
+      type: executor
+      template: |
+        {
+          "operation": "DELETE",
+          "source": { "table": "articles" },
+          "filters": {
+            "op": "AND",
+            "conditions": [
+              { "field": "id", "op": "=", "param": "id" }
+            ]
+          },
+          "returning": ["id", "title", "author_id"]
+        }
+      implementation: io.blog.pipeline.BlogExecutor
+      description: >
+        Deletes the article record matching the provided ID. CASCADE
+        constraints will automatically remove related comments.
+    postprocess:
+      - name: outputProcessor
+        type: transformer
+        template: |
+          {
+            "format": "json",
+            "envelope": {
+              "success": true,
+              "resource": "article",
+              "operation": "delete",
+              "warning": "Related comments were also removed due to CASCADE"
+            }
+          }
+        implementation: io.blog.pipeline.BlogOutputProcessor
+        description: >
+          Formats the deletion confirmation with details of the deleted article
+          and warning about cascaded deletions of comments.
+  output: io.cheshire.spi.pipeline.MaterializedOutput
+
+# ------------------------------------------------------------------------------
+# PUBLISH ARTICLE - Toggle publication status of an article
+# ------------------------------------------------------------------------------
+publish_article:
+  uri: blog://articles/publish
+  description: >
+    Publish or unpublish an article. When publishing, if no publish_date is
+    set, it will be set to current timestamp. When unpublishing, publish_date
+    is cleared (set to NULL).
+  input: io.cheshire.spi.pipeline.MaterializedInput
+  pipeline:
+    preprocess:
+      - name: inputProcessor
+        type: transformer
+        template: |
+          {
+            "validation": {
+              "required": ["id", "publish"],
+              "rules": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "publish": {
+                  "type": "boolean"
+                }
+              }
+            }
+          }
+        implementation: io.blog.pipeline.BlogInputProcessor
+        description: >
+          Validates that article ID is provided as UUID and publish flag is
+          a boolean value.
+    process:
+      name: executor
+      type: executor
+      template: |
+        {
+          "operation": "UPDATE",
+          "source": { "table": "articles" },
+          "set": [
+            { "field": "is_published", "param": "publish" },
+            { 
+              "field": "publish_date", 
+              "value": {
+                "condition": {
+                  "if": "publish = true AND publish_date IS NULL",
+                  "then": "CURRENT_TIMESTAMP",
+                  "else": "publish_date"
+                }
+              }
+            },
+            { "field": "updated_at", "function": "CURRENT_TIMESTAMP" }
+          ],
+          "filters": {
+            "op": "AND",
+            "conditions": [
+              { "field": "id", "op": "=", "param": "id" }
+            ]
+          },
+          "returning": ["id", "title", "is_published", "publish_date", "updated_at"]
+        }
+      implementation: io.blog.pipeline.BlogExecutor
+      description: >
+        Updates the article's publication status. If publishing and no publish
+        date exists, sets it to current timestamp. If unpublishing, leaves
+        publish_date unchanged.
+    postprocess:
+      - name: outputProcessor
+        type: transformer
+        template: |
+          {
+            "format": "json",
+            "envelope": {
+              "success": true,
+              "resource": "article",
+              "operation": "publish",
+              "status": "{param:publish}"
+            }
+          }
+        implementation: io.blog.pipeline.BlogOutputProcessor
+        description: >
+          Formats the publication status change confirmation with the new
+          publication state.
+  output: io.cheshire.spi.pipeline.MaterializedOutput
+
+# ==============================================================================
+# COMMENT OPERATIONS
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# CREATE COMMENT - Add a comment to an article
+# ------------------------------------------------------------------------------
+create_comment:
+  uri: blog://comments/create
+  description: >
+    Add a comment to an existing article. Comments require author name and
+    content, with optional email. The comment_date is automatically set to
+    current timestamp.
+  input: io.cheshire.spi.pipeline.MaterializedInput
+  pipeline:
+    preprocess:
+      - name: inputProcessor
+        type: transformer
+        template: |
+          {
+            "validation": {
+              "required": ["article_id", "author_name", "content"],
+              "rules": {
+                "article_id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "author_name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 255
+                },
+                "author_email": {
+                  "type": "string",
+                  "format": "email",
+                  "maxLength": 255,
+                  "optional": true
+                },
+                "content": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            }
+          }
+        implementation: io.blog.pipeline.BlogInputProcessor
+        description: >
+          Validates that article_id, author_name, and content are provided
+          with proper constraints. Validates email format if provided.
+    process:
+      name: executor
+      type: executor
+      template: |
+        {
+          "operation": "INSERT",
+          "source": { "table": "comments" },
+          "columns": [
+            { "field": "id", "function": "UUID()" },
+            { "field": "article_id", "param": "article_id" },
+            { "field": "author_name", "param": "author_name" },
+            { "field": "author_email", "param": "author_email", "nullable": true },
+            { "field": "content", "param": "content" },
+            { "field": "comment_date", "function": "CURRENT_TIMESTAMP" },
+            { "field": "created_at", "function": "CURRENT_TIMESTAMP" }
+          ],
+          "returning": ["id", "article_id", "author_name", "author_email", "content", "comment_date", "created_at"]
+        }
+      implementation: io.blog.pipeline.BlogExecutor
+      description: >
+        Inserts a new comment record with auto-generated UUID and timestamps.
+        Email is optional and can be NULL.
+    postprocess:
+      - name: outputProcessor
+        type: transformer
+        template: |
+          {
+            "format": "json",
+            "envelope": {
+              "success": true,
+              "resource": "comment",
+              "operation": "create"
+            }
+          }
+        implementation: io.blog.pipeline.BlogOutputProcessor
+        description: >
+          Formats the newly created comment into a standardized JSON response
+          structure with metadata.
+  output: io.cheshire.spi.pipeline.MaterializedOutput
+
+# ------------------------------------------------------------------------------
+# UPDATE COMMENT - Update existing comment record
+# ------------------------------------------------------------------------------
+update_comment:
+  uri: blog://comments/update
+  description: >
+    Update an existing comment's author information or content. Useful for
+    editing comments or updating author details.
+  input: io.cheshire.spi.pipeline.MaterializedInput
+  pipeline:
+    preprocess:
+      - name: inputProcessor
+        type: transformer
+        template: |
+          {
+            "validation": {
+              "required": ["id"],
+              "rules": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "author_name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 255,
+                  "optional": true
+                },
+                "author_email": {
+                  "type": "string",
+                  "format": "email",
+                  "maxLength": 255,
+                  "optional": true
+                },
+                "content": {
+                  "type": "string",
+                  "minLength": 1,
+                  "optional": true
+                }
+              }
+            }
+          }
+        implementation: io.blog.pipeline.BlogInputProcessor
+        description: >
+          Validates that comment ID is provided as UUID and that any provided
+          updates meet format requirements. At least one field must be provided.
+    process:
+      name: executor
+      type: executor
+      template: |
+        {
+          "operation": "UPDATE",
+          "source": { "table": "comments" },
+          "set": [
+            { "field": "author_name", "param": "author_name", "optional": true },
+            { "field": "author_email", "param": "author_email", "optional": true },
+            { "field": "content", "param": "content", "optional": true }
+          ],
+          "filters": {
+            "op": "AND",
+            "conditions": [
+              { "field": "id", "op": "=", "param": "id" }
+            ]
+          },
+          "returning": ["id", "article_id", "author_name", "author_email", "content", "comment_date", "created_at"]
+        }
+      implementation: io.blog.pipeline.BlogExecutor
+      description: >
+        Updates the comment record matching the provided ID with the specified
+        fields. Only non-null parameters are included in the SET clause.
+    postprocess:
+      - name: outputProcessor
+        type: transformer
+        template: |
+          {
+            "format": "json",
+            "envelope": {
+              "success": true,
+              "resource": "comment",
+              "operation": "update"
+            }
+          }
+        implementation: io.blog.pipeline.BlogOutputProcessor
+        description: >
+          Formats the updated comment into a standardized JSON response
+          structure indicating successful update.
+  output: io.cheshire.spi.pipeline.MaterializedOutput
+
+# ------------------------------------------------------------------------------
+# DELETE COMMENT - Permanently remove a comment
+# ------------------------------------------------------------------------------
+delete_comment:
+  uri: blog://comments/delete
+  description: >
+    Permanently remove a comment from the blog system. Comments are standalone
+    records with no cascade dependencies.
+  input: io.cheshire.spi.pipeline.MaterializedInput
+  pipeline:
+    preprocess:
+      - name: inputProcessor
+        type: transformer
+        template: |
+          {
+            "validation": {
+              "required": ["id"],
+              "rules": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          }
+        implementation: io.blog.pipeline.BlogInputProcessor
+        description: >
+          Validates the comment ID is provided as UUID.
+    process:
+      name: executor
+      type: executor
+      template: |
+        {
+          "operation": "DELETE",
+          "source": { "table": "comments" },
+          "filters": {
+            "op": "AND",
+            "conditions": [
+              { "field": "id", "op": "=", "param": "id" }
+            ]
+          },
+          "returning": ["id", "article_id", "author_name"]
+        }
+      implementation: io.blog.pipeline.BlogExecutor
+      description: >
+        Deletes the comment record matching the provided ID.
+    postprocess:
+      - name: outputProcessor
+        type: transformer
+        template: |
+          {
+            "format": "json",
+            "envelope": {
+              "success": true,
+              "resource": "comment",
+              "operation": "delete"
+            }
+          }
+        implementation: io.blog.pipeline.BlogOutputProcessor
+        description: >
+          Formats the deletion confirmation with details of the deleted comment.
+  output: io.cheshire.spi.pipeline.MaterializedOutput
+
+# ==============================================================================
+# AUTHOR RESOURCE QUERIES
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# GET AUTHORS - Paginated collection of authors with optional filtering
+# ------------------------------------------------------------------------------
+list_authors:
+  uri: blog://authors
+  description: >
+    Retrieve a paginated collection of authors from the blog system.
+    Supports optional filtering by username search, email, and creation date.
+    Default pagination of 50 authors per page.
+  input: io.cheshire.spi.pipeline.MaterializedInput
+  pipeline:
+    preprocess:
+      - name: inputProcessor
+        type: transformer
+        template: |
+          {
+            "validation": {
+              "rules": {
+                "search": {
+                  "type": "string",
+                  "optional": true
+                },
+                "created_after": {
+                  "type": "string",
+                  "format": "date-time",
+                  "optional": true
+                },
+                "limit": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 100,
+                  "default": 50
+                },
+                "page": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "default": 1
+                }
+              }
+            },
+            "transform": {
+              "search": {
+                "pattern": "ILIKE",
+                "wrap": "%{value}%"
+              }
+            },
+            "calculate": {
+              "offset": "(page - 1) * limit"
+            }
+          }
+        implementation: io.blog.pipeline.BlogInputProcessor
+        description: >
+          Validates query parameters, transforms search into case-insensitive
+          LIKE pattern, and calculates offset from page number.
+    process:
+      name: executor
+      type: executor
+      template: |
+        {
+          "operation": "SELECT",
+          "source": { "table": "authors", "alias": "a" },
+          "projection": [
+            { "field": "a.id", "alias": "id" },
+            { "field": "a.username", "alias": "username" },
+            { "field": "a.email", "alias": "email" },
+            { "field": "a.created_at", "alias": "created_at" },
+            { "field": "COUNT(art.id)", "alias": "article_count" }
+          ],
+          "joins": [
+            {
+              "type": "LEFT",
+              "table": "articles",
+              "alias": "art",
+              "on": [
+                { "left": "a.id", "op": "=", "right": "art.author_id" }
+              ]
+            }
+          ],
+          "filters": {
+            "op": "AND",
+            "conditions": [
+              { 
+                "op": "OR",
+                "conditions": [
+                  { "field": "a.username", "op": "ILIKE", "param": "search", "optional": true },
+                  { "field": "a.email", "op": "ILIKE", "param": "search", "optional": true }
+                ],
+                "optional": true
+              },
+              { "field": "a.created_at", "op": ">=", "param": "created_after", "optional": true }
+            ]
+          },
+          "groupBy": ["a.id", "a.username", "a.email", "a.created_at"],
+          "sort": [
+            { "field": "a.created_at", "direction": "DESC" }
+          ],
+          "limit": { "param": "limit", "default": 50 },
+          "offset": { "calculated": "offset", "default": 0 }
+        }
+      implementation: io.blog.pipeline.BlogExecutor
+      description: >
+        Executes a SELECT query with LEFT JOIN to retrieve authors along with
+        their article counts, supporting search and date filtering.
+    postprocess:
+      - name: outputProcessor
+        type: transformer
+        template: |
+          {
+            "format": "json",
+            "pagination": {
+              "includeMetadata": true,
+              "countQuery": "SELECT COUNT(*) FROM authors",
+              "page": "{param:page}",
+              "limit": "{param:limit}"
+            }
+          }
+        implementation: io.blog.pipeline.BlogOutputProcessor
+        description: >
+          Formats the author list into paginated JSON response with metadata
+          including total count, page info, and navigation links.
+  output: io.cheshire.spi.pipeline.MaterializedOutput
+
+# ------------------------------------------------------------------------------
+# GET AUTHOR BY ID - Individual author data with statistics
+# ------------------------------------------------------------------------------
+list_author_by_id:
+  uri: blog://authors/{id}
+  description: >
+    Retrieve detailed information about a specific author by their unique ID.
+    Returns the author record along with article count statistics.
+  input: io.cheshire.spi.pipeline.MaterializedInput
+  pipeline:
+    preprocess:
+      - name: inputProcessor
+        type: transformer
+        template: |
+          {
+            "validation": {
+              "required": ["id"],
+              "rules": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          }
+        implementation: io.blog.pipeline.BlogInputProcessor
+        description: >
+          Validates that author ID path parameter is provided as UUID.
+    process:
+      name: executor
+      type: executor
+      template: |
+        {
+          "operation": "SELECT",
+          "source": { "table": "authors", "alias": "a" },
+          "projection": [
+            { "field": "a.id", "alias": "id" },
+            { "field": "a.username", "alias": "username" },
+            { "field": "a.email", "alias": "email" },
+            { "field": "a.created_at", "alias": "created_at" },
+            { "field": "COUNT(art.id)", "alias": "total_articles" },
+            { "field": "COUNT(art.id) FILTER (WHERE art.is_published = true)", "alias": "published_articles" },
+            { "field": "COUNT(art.id) FILTER (WHERE art.is_published = false)", "alias": "draft_articles" }
+          ],
+          "joins": [
+            {
+              "type": "LEFT",
+              "table": "articles",
+              "alias": "art",
+              "on": [
+                { "left": "a.id", "op": "=", "right": "art.author_id" }
+              ]
+            }
+          ],
+          "filters": {
+            "op": "AND",
+            "conditions": [
+              { "field": "a.id", "op": "=", "param": "id" }
+            ]
+          },
+          "groupBy": ["a.id", "a.username", "a.email", "a.created_at"]
+        }
+      implementation: io.blog.pipeline.BlogExecutor
+      description: >
+        Executes a SELECT query with LEFT JOIN and conditional aggregation
+        to retrieve author details with article statistics.
+    postprocess:
+      - name: outputProcessor
+        type: transformer
+        template: |
+          {
+            "format": "json",
+            "singleRecord": true,
+            "notFoundBehavior": "404"
+          }
+        implementation: io.blog.pipeline.BlogOutputProcessor
+        description: >
+          Formats the author record as a single JSON object with statistics,
+          returning 404 if the author is not found.
+  output: io.cheshire.spi.pipeline.MaterializedOutput
+
+# ------------------------------------------------------------------------------
+# GET AUTHOR ARTICLES - All articles by a specific author
+# ------------------------------------------------------------------------------
+articles_by_author:
+  uri: blog://authors/{id}/articles
+  description: >
+    Retrieve all articles written by a specific author. Supports filtering by
+    publication status and sorting by various fields. Includes comment counts
+    for each article.
+  input: io.cheshire.spi.pipeline.MaterializedInput
+  pipeline:
+    preprocess:
+      - name: inputProcessor
+        type: transformer
+        template: |
+          {
+            "validation": {
+              "required": ["id"],
+              "rules": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "published_only": {
+                  "type": "boolean",
+                  "default": false,
+                  "optional": true
+                },
+                "sort": {
+                  "type": "string",
+                  "enum": ["created_at", "publish_date", "updated_at", "title"],
+                  "default": "created_at",
+                  "optional": true
+                },
+                "limit": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 100,
+                  "default": 20,
+                  "optional": true
+                },
+                "page": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "default": 1,
+                  "optional": true
+                }
+              }
+            },
+            "calculate": {
+              "offset": "(page - 1) * limit"
+            }
+          }
+        implementation: io.blog.pipeline.BlogInputProcessor
+        description: >
+          Validates author ID and optional parameters, calculates offset from
+          page and limit for pagination.
+    process:
+      name: executor
+      type: executor
+      template: |
+        {
+          "operation": "SELECT",
+          "source": { "table": "articles", "alias": "art" },
+          "projection": [
+            { "field": "art.id", "alias": "id" },
+            { "field": "art.title", "alias": "title" },
+            { "field": "art.content", "alias": "content" },
+            { "field": "art.author_id", "alias": "author_id" },
+            { "field": "art.is_published", "alias": "is_published" },
+            { "field": "art.publish_date", "alias": "publish_date" },
+            { "field": "art.created_at", "alias": "created_at" },
+            { "field": "art.updated_at", "alias": "updated_at" },
+            { "field": "a.username", "alias": "author_username" },
+            { "field": "COUNT(c.id)", "alias": "comment_count" }
+          ],
+          "joins": [
+            {
+              "type": "INNER",
+              "table": "authors",
+              "alias": "a",
+              "on": [
+                { "left": "art.author_id", "op": "=", "right": "a.id" }
+              ]
+            },
+            {
+              "type": "LEFT",
+              "table": "comments",
+              "alias": "c",
+              "on": [
+                { "left": "art.id", "op": "=", "right": "c.article_id" }
+              ]
+            }
+          ],
+          "filters": {
+            "op": "AND",
+            "conditions": [
+              { "field": "art.author_id", "op": "=", "param": "id" },
+              { "field": "art.is_published", "op": "=", "value": "true", "optional": "{param:published_only}" }
+            ]
+          },
+          "groupBy": ["art.id", "art.title", "art.content", "art.author_id", "art.is_published", 
+                      "art.publish_date", "art.created_at", "art.updated_at", "a.username"],
+          "sort": [
+            { "field": "{param:sort,default:'art.created_at'}", "direction": "DESC" }
+          ],
+          "limit": { "param": "limit", "default": 20 },
+          "offset": { "calculated": "offset", "default": 0 }
+        }
+      implementation: io.blog.pipeline.BlogExecutor
+      description: >
+        Executes a SELECT query with INNER JOIN for author and LEFT JOIN for
+        comments to retrieve articles with comment counts.
+    postprocess:
+      - name: outputProcessor
+        type: transformer
+        template: |
+          {
+            "format": "json",
+            "pagination": {
+              "includeMetadata": true,
+              "page": "{param:page}",
+              "limit": "{param:limit}"
+            }
+          }
+        implementation: io.blog.pipeline.BlogOutputProcessor
+        description: >
+          Formats the article collection as paginated JSON array with author
+          context and comment statistics.
+  output: io.cheshire.spi.pipeline.MaterializedOutput
+
+# ==============================================================================
+# ARTICLE RESOURCE QUERIES
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# GET ARTICLES - Paginated collection of articles with optional filtering
+# ------------------------------------------------------------------------------
+list_articles:
+  uri: blog://articles
+  description: >
+    Retrieve a paginated collection of articles from the blog system.
+    Supports filtering by author, publication status, text search, and category.
+    Results include author information and comment counts.
+  input: io.cheshire.spi.pipeline.MaterializedInput
+  pipeline:
+    preprocess:
+      - name: inputProcessor
+        type: transformer
+        template: |
+          {
+            "validation": {
+              "rules": {
+                "author": {
+                  "type": "string",
+                  "format": "uuid",
+                  "optional": true
+                },
+                "published": {
+                  "type": "boolean",
+                  "optional": true
+                },
+                "search": {
+                  "type": "string",
+                  "optional": true
+                },
+                "limit": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 100,
+                  "default": 20
+                },
+                "page": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "default": 1
+                },
+                "sort": {
+                  "type": "string",
+                  "enum": ["created_at", "publish_date", "updated_at", "title"],
+                  "default": "publish_date",
+                  "optional": true
+                }
+              }
+            },
+            "transform": {
+              "search": {
+                "pattern": "ILIKE",
+                "wrap": "%{value}%"
+              }
+            },
+            "calculate": {
+              "offset": "(page - 1) * limit"
+            }
+          }
+        implementation: io.blog.pipeline.BlogInputProcessor
+        description: >
+          Validates query parameters, transforms search term into case-insensitive
+          LIKE pattern, and calculates pagination offset.
+    process:
+      name: executor
+      type: executor
+      template: |
+        {
+          "operation": "SELECT",
+          "source": { "table": "articles", "alias": "art" },
+          "projection": [
+            { "field": "art.id", "alias": "id" },
+            { "field": "art.title", "alias": "title" },
+            { "field": "art.content", "alias": "content" },
+            { "field": "art.author_id", "alias": "author_id" },
+            { "field": "art.is_published", "alias": "is_published" },
+            { "field": "art.publish_date", "alias": "publish_date" },
+            { "field": "art.created_at", "alias": "created_at" },
+            { "field": "art.updated_at", "alias": "updated_at" },
+            { "field": "a.username", "alias": "author_username" },
+            { "field": "COUNT(c.id)", "alias": "comment_count" }
+          ],
+          "joins": [
+            {
+              "type": "INNER",
+              "table": "authors",
+              "alias": "a",
+              "on": [
+                { "left": "art.author_id", "op": "=", "right": "a.id" }
+              ]
+            },
+            {
+              "type": "LEFT",
+              "table": "comments",
+              "alias": "c",
+              "on": [
+                { "left": "art.id", "op": "=", "right": "c.article_id" }
+              ]
+            }
+          ],
+          "filters": {
+            "op": "AND",
+            "conditions": [
+              { "field": "art.author_id", "op": "=", "param": "author", "optional": true },
+              { "field": "art.is_published", "op": "=", "param": "published", "optional": true },
+              {
+                "op": "OR",
+                "conditions": [
+                  { "field": "art.title", "op": "ILIKE", "param": "search", "optional": true },
+                  { "field": "art.content", "op": "ILIKE", "param": "search", "optional": true }
+                ],
+                "optional": true
+              }
+            ]
+          },
+          "groupBy": ["art.id", "art.title", "art.content", "art.author_id", "art.is_published", 
+                      "art.publish_date", "art.created_at", "art.updated_at", "a.username"],
+          "sort": [
+            { "field": "{param:sort,default:'art.publish_date'}", "direction": "DESC" },
+            { "field": "art.created_at", "direction": "DESC" }
+          ],
+          "limit": { "param": "limit", "default": 20 },
+          "offset": { "calculated": "offset", "default": 0 }
+        }
+      implementation: io.blog.pipeline.BlogExecutor
+      description: >
+        Executes a SELECT query with INNER JOIN for author and LEFT JOIN for
+        comments to retrieve articles with filtering options.
+    postprocess:
+      - name: outputProcessor
+        type: transformer
+        template: |
+          {
+            "format": "json",
+            "pagination": {
+              "includeMetadata": true,
+              "page": "{param:page}",
+              "limit": "{param:limit}"
+            }
+          }
+        implementation: io.blog.pipeline.BlogOutputProcessor
+        description: >
+          Formats the article collection with pagination metadata and applied
+          filters information.
+  output: io.cheshire.spi.pipeline.MaterializedOutput
+
+# ------------------------------------------------------------------------------
+# GET ARTICLE BY ID - Individual article data with comments and author info
+# ------------------------------------------------------------------------------
+list_article_by_id:
+  uri: blog://articles/{id}
+  description: >
+    Retrieve detailed information about a specific article by its unique ID.
+    Returns the complete article record enriched with author information.
+  input: io.cheshire.spi.pipeline.MaterializedInput
+  pipeline:
+    preprocess:
+      - name: inputProcessor
+        type: transformer
+        template: |
+          {
+            "validation": {
+              "required": ["id"],
+              "rules": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          }
+        implementation: io.blog.pipeline.BlogInputProcessor
+        description: >
+          Validates that article ID path parameter is provided as UUID.
+    process:
+      name: executor
+      type: executor
+      template: |
+        {
+          "operation": "SELECT",
+          "source": { "table": "articles", "alias": "art" },
+          "projection": [
+            { "field": "art.id", "alias": "id" },
+            { "field": "art.title", "alias": "title" },
+            { "field": "art.content", "alias": "content" },
+            { "field": "art.author_id", "alias": "author_id" },
+            { "field": "art.is_published", "alias": "is_published" },
+            { "field": "art.publish_date", "alias": "publish_date" },
+            { "field": "art.created_at", "alias": "created_at" },
+            { "field": "art.updated_at", "alias": "updated_at" },
+            { "field": "a.username", "alias": "author_username" },
+            { "field": "a.email", "alias": "author_email" }
+          ],
+          "joins": [
+            {
+              "type": "INNER",
+              "table": "authors",
+              "alias": "a",
+              "on": [
+                { "left": "art.author_id", "op": "=", "right": "a.id" }
+              ]
+            }
+          ],
+          "filters": {
+            "op": "AND",
+            "conditions": [
+              { "field": "art.id", "op": "=", "param": "id" }
+            ]
+          }
+        }
+      implementation: io.blog.pipeline.BlogExecutor
+      description: >
+        Executes a SELECT query with INNER JOIN to retrieve a single article
+        record with author information.
+    postprocess:
+      - name: outputProcessor
+        type: transformer
+        template: |
+          {
+            "format": "json",
+            "singleRecord": true,
+            "notFoundBehavior": "404"
+          }
+        implementation: io.blog.pipeline.BlogOutputProcessor
+        description: >
+          Formats the article record as a single JSON object with author details,
+          returning 404 if the article is not found.
+  output: io.cheshire.spi.pipeline.MaterializedOutput
+
+# ------------------------------------------------------------------------------
+# GET ARTICLE COMMENTS - All comments for a specific article
+# ------------------------------------------------------------------------------
+comments_by_article:
+  uri: blog://articles/{id}/comments
+  description: >
+    Retrieve all comments for a specific article. Supports pagination and
+    sorting options. Returns comment details including author information.
+  input: io.cheshire.spi.pipeline.MaterializedInput
+  pipeline:
+    preprocess:
+      - name: inputProcessor
+        type: transformer
+        template: |
+          {
+            "validation": {
+              "required": ["id"],
+              "rules": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "limit": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 100,
+                  "default": 50,
+                  "optional": true
+                },
+                "page": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "default": 1,
+                  "optional": true
+                },
+                "sort": {
+                  "type": "string",
+                  "enum": ["comment_date", "created_at"],
+                  "default": "comment_date",
+                  "optional": true
+                }
+              }
+            },
+            "calculate": {
+              "offset": "(page - 1) * limit"
+            }
+          }
+        implementation: io.blog.pipeline.BlogInputProcessor
+        description: >
+          Validates article ID and optional pagination/sorting parameters.
+    process:
+      name: executor
+      type: executor
+      template: |
+        {
+          "operation": "SELECT",
+          "source": { "table": "comments", "alias": "c" },
+          "projection": [
+            { "field": "c.id", "alias": "id" },
+            { "field": "c.article_id", "alias": "article_id" },
+            { "field": "c.author_name", "alias": "author_name" },
+            { "field": "c.author_email", "alias": "author_email" },
+            { "field": "c.content", "alias": "content" },
+            { "field": "c.comment_date", "alias": "comment_date" },
+            { "field": "c.created_at", "alias": "created_at" },
+            { "field": "art.title", "alias": "article_title" }
+          ],
+          "joins": [
+            {
+              "type": "INNER",
+              "table": "articles",
+              "alias": "art",
+              "on": [
+                { "left": "c.article_id", "op": "=", "right": "art.id" }
+              ]
+            }
+          ],
+          "filters": {
+            "op": "AND",
+            "conditions": [
+              { "field": "c.article_id", "op": "=", "param": "id" }
+            ]
+          },
+          "sort": [
+            { "field": "{param:sort,default:'c.comment_date'}", "direction": "DESC" }
+          ],
+          "limit": { "param": "limit", "default": 50 },
+          "offset": { "calculated": "offset", "default": 0 }
+        }
+      implementation: io.blog.pipeline.BlogExecutor
+      description: >
+        Executes a SELECT query with INNER JOIN to retrieve all comments for
+        the specified article, including article title.
+    postprocess:
+      - name: outputProcessor
+        type: transformer
+        template: |
+          {
+            "format": "json",
+            "pagination": {
+              "includeMetadata": true,
+              "page": "{param:page}",
+              "limit": "{param:limit}"
+            }
+          }
+        implementation: io.blog.pipeline.BlogOutputProcessor
+        description: >
+          Formats the comment collection as paginated JSON array with article
+          context information.
+  output: io.cheshire.spi.pipeline.MaterializedOutput
+
+# ==============================================================================
+# COMMENT RESOURCE QUERIES
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# GET COMMENTS - Paginated collection of comments with optional filtering
+# ------------------------------------------------------------------------------
+list_comments:
+  uri: blog://comments
+  description: >
+    Retrieve a paginated collection of comments from the blog system.
+    Supports filtering by article, author email, and date ranges.
+    Results include article information and author details.
+  input: io.cheshire.spi.pipeline.MaterializedInput
+  pipeline:
+    preprocess:
+      - name: inputProcessor
+        type: transformer
+        template: |
+          {
+            "validation": {
+              "rules": {
+                "article": {
+                  "type": "string",
+                  "format": "uuid",
+                  "optional": true
+                },
+                "author_email": {
+                  "type": "string",
+                  "format": "email",
+                  "optional": true
+                },
+                "date_from": {
+                  "type": "string",
+                  "format": "date-time",
+                  "optional": true
+                },
+                "date_to": {
+                  "type": "string",
+                  "format": "date-time",
+                  "optional": true
+                },
+                "limit": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 100,
+                  "default": 50
+                },
+                "page": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "default": 1
+                }
+              }
+            },
+            "calculate": {
+              "offset": "(page - 1) * limit"
+            }
+          }
+        implementation: io.blog.pipeline.BlogInputProcessor
+        description: >
+          Validates query parameters for comment filtering and calculates
+          pagination offset.
+    process:
+      name: executor
+      type: executor
+      template: |
+        {
+          "operation": "SELECT",
+          "source": { "table": "comments", "alias": "c" },
+          "projection": [
+            { "field": "c.id", "alias": "id" },
+            { "field": "c.article_id", "alias": "article_id" },
+            { "field": "c.author_name", "alias": "author_name" },
+            { "field": "c.author_email", "alias": "author_email" },
+            { "field": "c.content", "alias": "content" },
+            { "field": "c.comment_date", "alias": "comment_date" },
+            { "field": "c.created_at", "alias": "created_at" },
+            { "field": "art.title", "alias": "article_title" },
+            { "field": "a.username", "alias": "article_author" }
+          ],
+          "joins": [
+            {
+              "type": "INNER",
+              "table": "articles",
+              "alias": "art",
+              "on": [
+                { "left": "c.article_id", "op": "=", "right": "art.id" }
+              ]
+            },
+            {
+              "type": "INNER",
+              "table": "authors",
+              "alias": "a",
+              "on": [
+                { "left": "art.author_id", "op": "=", "right": "a.id" }
+              ]
+            }
+          ],
+          "filters": {
+            "op": "AND",
+            "conditions": [
+              { "field": "c.article_id", "op": "=", "param": "article", "optional": true },
+              { "field": "c.author_email", "op": "=", "param": "author_email", "optional": true },
+              { "field": "c.comment_date", "op": ">=", "param": "date_from", "optional": true },
+              { "field": "c.comment_date", "op": "<=", "param": "date_to", "optional": true }
+            ]
+          },
+          "sort": [
+            { "field": "c.comment_date", "direction": "DESC" }
+          ],
+          "limit": { "param": "limit", "default": 50 },
+          "offset": { "calculated": "offset", "default": 0 }
+        }
+      implementation: io.blog.pipeline.BlogExecutor
+      description: >
+        Executes a SELECT query with INNER JOINs to retrieve comments with
+        article and author information, supporting various filter combinations.
+    postprocess:
+      - name: outputProcessor
+        type: transformer
+        template: |
+          {
+            "format": "json",
+            "pagination": {
+              "includeMetadata": true,
+              "page": "{param:page}",
+              "limit": "{param:limit}"
+            }
+          }
+        implementation: io.blog.pipeline.BlogOutputProcessor
+        description: >
+          Formats the comment collection with pagination metadata and applied
+          filters information.
+  output: io.cheshire.spi.pipeline.MaterializedOutput
+
+# ------------------------------------------------------------------------------
+# GET COMMENT BY ID - Individual comment data with article and author info
+# ------------------------------------------------------------------------------
+list_comment_by_id:
+  uri: blog://comments/{id}
+  description: >
+    Retrieve detailed information about a specific comment by its unique ID.
+    Returns the comment record enriched with article and author information.
+  input: io.cheshire.spi.pipeline.MaterializedInput
+  pipeline:
+    preprocess:
+      - name: inputProcessor
+        type: transformer
+        template: |
+          {
+            "validation": {
+              "required": ["id"],
+              "rules": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          }
+        implementation: io.blog.pipeline.BlogInputProcessor
+        description: >
+          Validates that comment ID path parameter is provided as UUID.
+    process:
+      name: executor
+      type: executor
+      template: |
+        {
+          "operation": "SELECT",
+          "source": { "table": "comments", "alias": "c" },
+          "projection": [
+            { "field": "c.id", "alias": "id" },
+            { "field": "c.article_id", "alias": "article_id" },
+            { "field": "c.author_name", "alias": "author_name" },
+            { "field": "c.author_email", "alias": "author_email" },
+            { "field": "c.content", "alias": "content" },
+            { "field": "c.comment_date", "alias": "comment_date" },
+            { "field": "c.created_at", "alias": "created_at" },
+            { "field": "art.title", "alias": "article_title" },
+            { "field": "art.content", "alias": "article_content_preview" },
+            { "field": "a.username", "alias": "article_author" }
+          ],
+          "joins": [
+            {
+              "type": "INNER",
+              "table": "articles",
+              "alias": "art",
+              "on": [
+                { "left": "c.article_id", "op": "=", "right": "art.id" }
+              ]
+            },
+            {
+              "type": "INNER",
+              "table": "authors",
+              "alias": "a",
+              "on": [
+                { "left": "art.author_id", "op": "=", "right": "a.id" }
+              ]
+            }
+          ],
+          "filters": {
+            "op": "AND",
+            "conditions": [
+              { "field": "c.id", "op": "=", "param": "id" }
+            ]
+          }
+        }
+      implementation: io.blog.pipeline.BlogExecutor
+      description: >
+        Executes a SELECT query with INNER JOINs to retrieve a single comment
+        with complete article and author context.
+    postprocess:
+      - name: outputProcessor
+        type: transformer
+        template: |
+          {
+            "format": "json",
+            "singleRecord": true,
+            "notFoundBehavior": "404",
+            "transform": {
+              "article_content_preview": {
+                "truncate": 200
+              }
+            }
+          }
+        implementation: io.blog.pipeline.BlogOutputProcessor
+        description: >
+          Formats the comment record as a single JSON object with all enriched
+          metadata, returning 404 if not found.
+  output: io.cheshire.spi.pipeline.MaterializedOutput
+
+# ==============================================================================
+# REPORTING AND ANALYTICS
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# GET ARTICLE STATISTICS - Statistics about articles
+# ------------------------------------------------------------------------------
+article_stats:
+  uri: blog://reports/article-stats
+  description: >
+    Generate statistics report about articles in the blog system. Includes
+    counts by status, average content length, publication trends, and
+    comment engagement metrics. Supports filtering by author and date range.
+  input: io.cheshire.spi.pipeline.MaterializedInput
+  pipeline:
+    preprocess:
+      - name: inputProcessor
+        type: transformer
+        template: |
+          {
+            "validation": {
+              "rules": {
+                "author": {
+                  "type": "string",
+                  "format": "uuid",
+                  "optional": true
+                },
+                "start_date": {
+                  "type": "string",
+                  "format": "date-time",
+                  "optional": true
+                },
+                "end_date": {
+                  "type": "string",
+                  "format": "date-time",
+                  "optional": true
+                }
+              }
+            }
+          }
+        implementation: io.blog.pipeline.BlogInputProcessor
+        description: >
+          Validates optional filtering parameters for author and date range.
+    process:
+      name: executor
+      type: executor
+      template: |
+        {
+          "operation": "SELECT",
+          "source": { "table": "articles", "alias": "art" },
+          "projection": [
+            { "field": "COUNT(art.id)", "alias": "total_articles" },
+            { "field": "COUNT(art.id) FILTER (WHERE art.is_published = true)", "alias": "published_count" },
+            { "field": "COUNT(art.id) FILTER (WHERE art.is_published = false)", "alias": "draft_count" },
+            { "field": "AVG(LENGTH(art.content))", "alias": "avg_content_length" },
+            { "field": "MAX(art.publish_date)", "alias": "latest_publication" },
+            { "field": "MIN(art.publish_date)", "alias": "earliest_publication" },
+            { "field": "AVG((SELECT COUNT(*) FROM comments c WHERE c.article_id = art.id))", "alias": "avg_comments_per_article" },
+            { "field": "SUM((SELECT COUNT(*) FROM comments c WHERE c.article_id = art.id))", "alias": "total_comments" }
+          ],
+          "filters": {
+            "op": "AND",
+            "conditions": [
+              { "field": "art.author_id", "op": "=", "param": "author", "optional": true },
+              { "field": "art.created_at", "op": ">=", "param": "start_date", "optional": true },
+              { "field": "art.created_at", "op": "<=", "param": "end_date", "optional": true }
+            ]
+          }
+        }
+      implementation: io.blog.pipeline.BlogExecutor
+      description: >
+        Executes a complex aggregation query to calculate article statistics
+        including counts, averages, and comment engagement metrics.
+    postprocess:
+      - name: outputProcessor
+        type: transformer
+        template: |
+          {
+            "format": "json",
+            "report": true,
+            "metadata": {
+              "reportName": "Article Statistics",
+              "generatedAt": "CURRENT_TIMESTAMP",
+              "filtersApplied": {
+                "author": "{param:author}",
+                "dateRange": "{param:start_date} to {param:end_date}"
+              }
+            },
+            "transform": {
+              "avg_content_length": {
+                "round": 0
+              },
+              "avg_comments_per_article": {
+                "round": 2
+              }
+            }
+          }
+        implementation: io.blog.pipeline.BlogOutputProcessor
+        description: >
+          Formats the statistics report with metadata, rounding for numeric
+          values, and information about applied filters.
+  output: io.cheshire.spi.pipeline.MaterializedOutput
+
+# ------------------------------------------------------------------------------
+# GET TOP AUTHORS - Authors ranked by number of published articles
+# ------------------------------------------------------------------------------
+top_authors:
+  uri: blog://reports/top-authors
+  description: >
+    Generate a report of top-performing authors ranked by number of published
+    articles. Includes metrics such as total articles, publication rate,
+    and comment engagement. Supports filtering by timeframe and limit.
+  input: io.cheshire.spi.pipeline.MaterializedInput
+  pipeline:
+    preprocess:
+      - name: inputProcessor
+        type: transformer
+        template: |
+          {
+            "validation": {
+              "rules": {
+                "limit": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 50,
+                  "default": 10
+                },
+                "timeframe": {
+                  "type": "string",
+                  "enum": ["week", "month", "quarter", "year", "all"],
+                  "default": "all",
+                  "optional": true
+                }
+              }
+            },
+            "transform": {
+              "timeframe": {
+                "toDateRange": true
+              }
+            }
+          }
+        implementation: io.blog.pipeline.BlogInputProcessor
+        description: >
+          Validates limit and optional timeframe parameters, transforms timeframe
+          into a date range for filtering.
+    process:
+      name: executor
+      type: executor
+      template: |
+        {
+          "operation": "SELECT",
+          "source": { "table": "authors", "alias": "a" },
+          "projection": [
+            { "field": "a.id", "alias": "id" },
+            { "field": "a.username", "alias": "username" },
+            { "field": "a.email", "alias": "email" },
+            { "field": "a.created_at", "alias": "joined_date" },
+            { "field": "COUNT(art.id)", "alias": "total_articles" },
+            { "field": "COUNT(art.id) FILTER (WHERE art.is_published = true)", "alias": "published_articles" },
+            { "field": "COUNT(art.id) FILTER (WHERE art.is_published = false)", "alias": "draft_articles" },
+            { "field": "AVG((SELECT COUNT(*) FROM comments c WHERE c.article_id = art.id))", "alias": "avg_comments_per_article" },
+            { "field": "MAX(art.publish_date)", "alias": "latest_publication" }
+          ],
+          "joins": [
+            {
+              "type": "LEFT",
+              "table": "articles",
+              "alias": "art",
+              "on": [
+                { "left": "a.id", "op": "=", "right": "art.author_id" },
+                { "left": "art.created_at", "op": ">=", "calculated": "timeframe_start", "optional": true },
+                { "left": "art.created_at", "op": "<=", "calculated": "timeframe_end", "optional": true }
+              ]
+            }
+          ],
+          "groupBy": ["a.id", "a.username", "a.email", "a.created_at"],
+          "having": [
+            {
+              "field": "COUNT(art.id)",
+              "op": ">",
+              "value": "0"
+            }
+          ],
+          "sort": [
+            { "field": "published_articles", "direction": "DESC" },
+            { "field": "total_articles", "direction": "DESC" }
+          ],
+          "limit": { "param": "limit", "default": 10 }
+        }
+      implementation: io.blog.pipeline.BlogExecutor
+      description: >
+        Executes a complex aggregation query across authors and articles to
+        calculate author performance metrics, grouped by author and sorted
+        by publication count.
+    postprocess:
+      - name: outputProcessor
+        type: transformer
+        template: |
+          {
+            "format": "json",
+            "report": true,
+            "metadata": {
+              "reportName": "Top Authors by Publications",
+              "generatedAt": "CURRENT_TIMESTAMP",
+              "timeframe": "{param:timeframe}",
+              "rankingCriteria": "Published Articles Count"
+            },
+            "transform": {
+              "avg_comments_per_article": {
+                "round": 2
+              }
+            }
+          }
+        implementation: io.blog.pipeline.BlogOutputProcessor
+        description: >
+          Formats the top authors report with metadata, timeframe information,
+          and ranking criteria.
+  output: io.cheshire.spi.pipeline.MaterializedOutput
+
+# ------------------------------------------------------------------------------
+# GET COMMENTS ACTIVITY - Analysis of comment activity over time
+# ------------------------------------------------------------------------------
+comments_activity:
+  uri: blog://reports/comments-activity
+  description: >
+    Generate a report analyzing comment activity trends over time. Includes
+    daily/monthly comment counts, most active articles, and engagement metrics.
+    Supports filtering by article and timeframe.
+  input: io.cheshire.spi.pipeline.MaterializedInput
+  pipeline:
+    preprocess:
+      - name: inputProcessor
+        type: transformer
+        template: |
+          {
+            "validation": {
+              "rules": {
+                "article": {
+                  "type": "string",
+                  "format": "uuid",
+                  "optional": true
+                },
+                "timeframe": {
+                  "type": "string",
+                  "enum": ["day", "week", "month", "quarter", "year"],
+                  "default": "month",
+                  "optional": true
+                },
+                "min_comments": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "default": 1,
+                  "optional": true
+                }
+              }
+            },
+            "transform": {
+              "timeframe": {
+                "toDateRange": true
+              }
+            }
+          }
+        implementation: io.blog.pipeline.BlogInputProcessor
+        description: >
+          Validates filtering parameters for article, timeframe, and minimum
+          comment threshold.
+    process:
+      name: executor
+      type: executor
+      template: |
+        {
+          "operation": "SELECT",
+          "source": { "table": "comments", "alias": "c" },
+          "projection": [
+            { "field": "DATE(c.comment_date)", "alias": "comment_day" },
+            { "field": "COUNT(c.id)", "alias": "comment_count" },
+            { "field": "art.title", "alias": "article_title" },
+            { "field": "a.username", "alias": "article_author" },
+            { "field": "COUNT(DISTINCT c.author_email)", "alias": "unique_commenters" }
+          ],
+          "joins": [
+            {
+              "type": "INNER",
+              "table": "articles",
+              "alias": "art",
+              "on": [
+                { "left": "c.article_id", "op": "=", "right": "art.id" }
+              ]
+            },
+            {
+              "type": "INNER",
+              "table": "authors",
+              "alias": "a",
+              "on": [
+                { "left": "art.author_id", "op": "=", "right": "a.id" }
+              ]
+            }
+          ],
+          "filters": {
+            "op": "AND",
+            "conditions": [
+              { "field": "c.article_id", "op": "=", "param": "article", "optional": true },
+              { "field": "c.comment_date", "op": ">=", "calculated": "timeframe_start", "optional": true },
+              { "field": "c.comment_date", "op": "<=", "calculated": "timeframe_end", "optional": true }
+            ]
+          },
+          "groupBy": ["DATE(c.comment_date)", "art.title", "a.username"],
+          "having": [
+            {
+              "field": "COUNT(c.id)",
+              "op": ">=",
+              "param": "min_comments",
+              "default": 1
+            }
+          ],
+          "sort": [
+            { "field": "comment_day", "direction": "DESC" },
+            { "field": "comment_count", "direction": "DESC" }
+          ]
+        }
+      implementation: io.blog.pipeline.BlogExecutor
+      description: >
+        Executes a SELECT query with INNER JOINs to analyze comment activity,
+        grouping by date and article, with filtering by timeframe and minimum
+        comment count.
+    postprocess:
+      - name: outputProcessor
+        type: transformer
+        template: |
+          {
+            "format": "json",
+            "report": true,
+            "metadata": {
+              "reportName": "Comments Activity Analysis",
+              "generatedAt": "CURRENT_TIMESTAMP",
+              "timeframe": "{param:timeframe}",
+              "minimumComments": "{param:min_comments}"
+            },
+            "summary": {
+              "includeTotals": true,
+              "fields": ["comment_count", "unique_commenters"]
+            }
+          }
+        implementation: io.blog.pipeline.BlogOutputProcessor
+        description: >
+          Formats the comments activity report with metadata, timeframe
+          information, and summary totals for analysis.
+  output: io.cheshire.spi.pipeline.MaterializedOutput
+
+# ==============================================================================
+# END OF CONFIGURATION
+# ==============================================================================

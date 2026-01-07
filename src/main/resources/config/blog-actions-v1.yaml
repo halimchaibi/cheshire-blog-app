@@ -1,0 +1,652 @@
+# --------------------------------------------------------------------------
+# Blog Database MCP Server Manifest
+# Complete API for blog management system with authors, articles, and comments
+# --------------------------------------------------------------------------
+# Model Context Protocol (MCP) specification for Blog database access
+# Specification: https://github.com/modelcontextprotocol/specification
+# --------------------------------------------------------------------------
+
+mcp: 1.0.0
+info:
+  name: "blog-db-api"
+  version: "1.0.0"
+  description: "Complete REST API for blog management system with authors, articles, and comments"
+  authors: [ "Blog API Team" ]
+  repository: "https://github.com/blog/mcp-server"
+
+# --------------------------------------------------------------------------
+# TOOLS (Actionable Capabilities)
+# --------------------------------------------------------------------------
+tools:
+  # --------------------------------------------------------------------------
+  # AUTHOR TOOLS
+  # --------------------------------------------------------------------------
+  - name: "create_author"
+    uri: "blog://authors/create"
+    description: "Create a new author record with username and email"
+    inputSchema:
+      type: "object"
+      properties:
+        username:
+          type: "string"
+          maxLength: 255
+          minLength: 3
+          pattern: "^[a-zA-Z0-9_]+$"
+          description: "Unique username for the author"
+        email:
+          type: "string"
+          format: "email"
+          maxLength: 255
+          description: "Email address of the author"
+      required: [ "username", "email" ]
+      additionalProperties: false
+    metadata:
+      category: "authors"
+      operationId: "createAuthor"
+      http:
+        method: "POST"
+        path: "/authors"
+
+  - name: "update_author"
+    uri: "blog://authors/update"
+    description: "Update an existing author's information"
+    inputSchema:
+      type: "object"
+      properties:
+        id:
+          type: "string"
+          format: "uuid"
+          description: "The unique ID of the author to update"
+        username:
+          type: "string"
+          maxLength: 255
+          minLength: 3
+          pattern: "^[a-zA-Z0-9_]+$"
+          description: "Updated username for the author"
+        email:
+          type: "string"
+          format: "email"
+          maxLength: 255
+          description: "Updated email address of the author"
+      required: [ "id" ]
+      additionalProperties: false
+    metadata:
+      category: "authors"
+      operationId: "updateAuthor"
+      http:
+        method: "PUT"
+        path: "/authors/{id}"
+
+  - name: "delete_author"
+    uri: "blog://authors/delete"
+    description: "Permanently remove an author and all their articles"
+    inputSchema:
+      type: "object"
+      properties:
+        id:
+          type: "string"
+          format: "uuid"
+          description: "The unique ID of the author to delete"
+      required: [ "id" ]
+      additionalProperties: false
+    metadata:
+      category: "authors"
+      operationId: "deleteAuthor"
+      http:
+        method: "DELETE"
+        path: "/authors/{id}"
+
+  # --------------------------------------------------------------------------
+  # ARTICLE TOOLS
+  # --------------------------------------------------------------------------
+  - name: "create_article"
+    uri: "blog://articles/create"
+    description: "Create a new article with title and content"
+    inputSchema:
+      type: "object"
+      properties:
+        title:
+          type: "string"
+          maxLength: 255
+          minLength: 1
+          description: "Title of the article"
+        content:
+          type: "string"
+          description: "Full content of the article"
+        author_id:
+          type: "string"
+          format: "uuid"
+          description: "ID of the author creating the article"
+        is_published:
+          type: "boolean"
+          default: false
+          description: "Whether the article is published immediately"
+        publish_date:
+          type: "string"
+          format: "date-time"
+          description: "Scheduled publish date (if not immediate)"
+      required: [ "title", "content", "author_id" ]
+      additionalProperties: false
+    metadata:
+      category: "articles"
+      operationId: "createArticle"
+      http:
+        method: "POST"
+        path: "/articles"
+
+  - name: "update_article"
+    uri: "blog://articles/update"
+    description: "Update an existing article"
+    inputSchema:
+      type: "object"
+      properties:
+        id:
+          type: "string"
+          format: "uuid"
+          description: "The unique ID of the article to update"
+        title:
+          type: "string"
+          maxLength: 255
+          minLength: 1
+          description: "Updated title of the article"
+        content:
+          type: "string"
+          description: "Updated content of the article"
+        is_published:
+          type: "boolean"
+          description: "Updated publication status"
+        publish_date:
+          type: "string"
+          format: "date-time"
+          description: "Updated publish date"
+      required: [ "id" ]
+      additionalProperties: false
+    metadata:
+      category: "articles"
+      operationId: "updateArticle"
+      http:
+        method: "PUT"
+        path: "/articles/{id}"
+
+  - name: "delete_article"
+    uri: "blog://articles/delete"
+    description: "Permanently remove an article and its comments"
+    inputSchema:
+      type: "object"
+      properties:
+        id:
+          type: "string"
+          format: "uuid"
+          description: "The unique ID of the article to delete"
+      required: [ "id" ]
+      additionalProperties: false
+    metadata:
+      category: "articles"
+      operationId: "deleteArticle"
+      http:
+        method: "DELETE"
+        path: "/articles/{id}"
+
+  - name: "publish_article"
+    uri: "blog://articles/publish"
+    description: "Publish or unpublish an article"
+    inputSchema:
+      type: "object"
+      properties:
+        id:
+          type: "string"
+          format: "uuid"
+          description: "The unique ID of the article"
+        publish:
+          type: "boolean"
+          description: "True to publish, false to unpublish"
+      required: [ "id", "publish" ]
+      additionalProperties: false
+    metadata:
+      category: "articles"
+      operationId: "publishArticle"
+      http:
+        method: "PATCH"
+        path: "/articles/{id}/publish"
+
+  # --------------------------------------------------------------------------
+  # COMMENT TOOLS
+  # --------------------------------------------------------------------------
+  - name: "create_comment"
+    uri: "blog://comments/create"
+    description: "Add a comment to an article"
+    inputSchema:
+      type: "object"
+      properties:
+        article_id:
+          type: "string"
+          format: "uuid"
+          description: "ID of the article to comment on"
+        author_name:
+          type: "string"
+          maxLength: 255
+          minLength: 1
+          description: "Name of the comment author"
+        author_email:
+          type: "string"
+          format: "email"
+          maxLength: 255
+          description: "Email of the comment author"
+        content:
+          type: "string"
+          description: "Content of the comment"
+      required: [ "article_id", "author_name", "content" ]
+      additionalProperties: false
+    metadata:
+      category: "comments"
+      operationId: "createComment"
+      http:
+        method: "POST"
+        path: "/comments"
+
+  - name: "update_comment"
+    uri: "blog://comments/update"
+    description: "Update an existing comment"
+    inputSchema:
+      type: "object"
+      properties:
+        id:
+          type: "string"
+          format: "uuid"
+          description: "The unique ID of the comment to update"
+        author_name:
+          type: "string"
+          maxLength: 255
+          minLength: 1
+          description: "Updated name of the comment author"
+        author_email:
+          type: "string"
+          format: "email"
+          maxLength: 255
+          description: "Updated email of the comment author"
+        content:
+          type: "string"
+          description: "Updated content of the comment"
+      required: [ "id" ]
+      additionalProperties: false
+    metadata:
+      category: "comments"
+      operationId: "updateComment"
+      http:
+        method: "PUT"
+        path: "/comments/{id}"
+
+  - name: "delete_comment"
+    uri: "blog://comments/delete"
+    description: "Permanently remove a comment"
+    inputSchema:
+      type: "object"
+      properties:
+        id:
+          type: "string"
+          format: "uuid"
+          description: "The unique ID of the comment to delete"
+      required: [ "id" ]
+      additionalProperties: false
+    metadata:
+      category: "comments"
+      operationId: "deleteComment"
+      http:
+        method: "DELETE"
+        path: "/comments/{id}"
+
+# --------------------------------------------------------------------------
+# RESOURCES (Read-only Data Sources / Queryable)
+# --------------------------------------------------------------------------
+resources:
+  - uri: "blog://schemas/author.json"
+    name: "Author JSON Schema"
+    description: "JSON Schema definition for Author objects"
+    mimeType: "application/schema+json"
+    metadata:
+      category: "schemas"
+
+  - uri: "blog://schemas/article.json"
+    name: "Article JSON Schema"
+    description: "JSON Schema definition for Article objects"
+    mimeType: "application/schema+json"
+    metadata:
+      category: "schemas"
+
+  - uri: "blog://schemas/comment.json"
+    name: "Comment JSON Schema"
+    description: "JSON Schema definition for Comment objects"
+    mimeType: "application/schema+json"
+    metadata:
+      category: "schemas"
+
+  - uri: "blog://docs/api-overview.md"
+    name: "API Overview Documentation"
+    description: "Complete API documentation and usage guide"
+    mimeType: "text/markdown"
+    metadata:
+      category: "documentation"
+
+# --------------------------------------------------------------------------
+# RESOURCE TEMPLATES (Parameterized / Queryable)
+# --------------------------------------------------------------------------
+resourceTemplates:
+  # AUTHORS
+  - uriTemplate: "blog://authors{?page,limit,search,created_after}"
+    name: "Authors Collection"
+    description: "Paginated collection of authors with optional filtering"
+    mimeType: "application/json"
+    metadata:
+      category: "authors"
+      operationId: "getAuthors"
+      http:
+        method: "GET"
+        path: "/authors"
+
+  - uriTemplate: "blog://authors/{id}.json"
+    name: "Author Resource"
+    description: "Individual author data in JSON format"
+    mimeType: "application/json"
+    metadata:
+      category: "authors"
+      operationId: "getAuthorById"
+      http:
+        method: "GET"
+        path: "/authors/{id}"
+
+  - uriTemplate: "blog://authors/{id}/articles{?published_only,page,limit,sort}"
+    name: "Author Articles Collection"
+    description: "All articles by a specific author"
+    mimeType: "application/json"
+    metadata:
+      category: [ "authors", "articles" ]
+      operationId: "getAuthorArticles"
+      http:
+        method: "GET"
+        path: "/authors/{id}/articles"
+
+  # ARTICLES
+  - uriTemplate: "blog://articles{?author,published,search,category,page,limit,sort}"
+    name: "Articles Collection"
+    description: "Paginated collection of articles with filtering options"
+    mimeType: "application/json"
+    metadata:
+      category: "articles"
+      operationId: "getArticles"
+      http:
+        method: "GET"
+        path: "/articles"
+
+  - uriTemplate: "blog://articles/{id}.json"
+    name: "Article Resource"
+    description: "Individual article data in JSON format"
+    mimeType: "application/json"
+    metadata:
+      category: "articles"
+      operationId: "getArticleById"
+      http:
+        method: "GET"
+        path: "/articles/{id}"
+
+  - uriTemplate: "blog://articles/{id}/comments{?page,limit,sort}"
+    name: "Article Comments Collection"
+    description: "All comments for a specific article"
+    mimeType: "application/json"
+    metadata:
+      category: [ "articles", "comments" ]
+      operationId: "getArticleComments"
+      http:
+        method: "GET"
+        path: "/articles/{id}/comments"
+
+  # COMMENTS
+  - uriTemplate: "blog://comments{?article,author_email,date_from,date_to,page,limit}"
+    name: "Comments Collection"
+    description: "Paginated collection of comments with filtering"
+    mimeType: "application/json"
+    metadata:
+      category: "comments"
+      operationId: "getComments"
+      http:
+        method: "GET"
+        path: "/comments"
+
+  - uriTemplate: "blog://comments/{id}.json"
+    name: "Comment Resource"
+    description: "Individual comment data in JSON format"
+    mimeType: "application/json"
+    metadata:
+      category: "comments"
+      operationId: "getCommentById"
+      http:
+        method: "GET"
+        path: "/comments/{id}"
+
+  # REPORTS & ANALYTICS
+  - uriTemplate: "blog://reports/article-stats{?author,start_date,end_date}"
+    name: "Article Statistics Report"
+    description: "Statistics about articles (counts, averages, etc.)"
+    mimeType: "application/json"
+    metadata:
+      category: "reports"
+      operationId: "getArticleStats"
+      http:
+        method: "GET"
+        path: "/reports/article-stats"
+
+  - uriTemplate: "blog://reports/top-authors{?limit,timeframe}"
+    name: "Top Authors Report"
+    description: "Authors ranked by number of published articles"
+    mimeType: "application/json"
+    metadata:
+      category: "reports"
+      operationId: "getTopAuthors"
+      http:
+        method: "GET"
+        path: "/reports/top-authors"
+
+  - uriTemplate: "blog://reports/comments-activity{?article,timeframe,min_comments}"
+    name: "Comments Activity Report"
+    description: "Analysis of comment activity over time"
+    mimeType: "application/json"
+    metadata:
+      category: "reports"
+      operationId: "getCommentsActivity"
+      http:
+        method: "GET"
+        path: "/reports/comments-activity"
+
+# --------------------------------------------------------------------------
+# PROMPTS (Common Query Patterns)
+# --------------------------------------------------------------------------
+prompts:
+  - name: "create_blog_post"
+    description: "Create a new blog post with author information"
+    arguments:
+      - name: "author_id"
+        description: "ID of the author creating the post"
+        required: true
+      - name: "title"
+        description: "Title of the blog post"
+        required: true
+      - name: "content"
+        description: "Content of the blog post"
+        required: true
+    metadata:
+      category: "articles"
+      tools: [ "create_article" ]
+      resources: [ "Authors Collection", "Articles Collection" ]
+
+  - name: "search_articles"
+    description: "Search for articles by title, content, or author"
+    arguments:
+      - name: "query"
+        description: "Search query for articles"
+        required: true
+      - name: "author"
+        description: "Filter by specific author ID"
+      - name: "published_only"
+        description: "Show only published articles"
+        type: "boolean"
+        default: true
+    metadata:
+      category: "search"
+      resources: [ "Articles Collection", "Authors Collection" ]
+
+  - name: "get_article_with_comments"
+    description: "Get a specific article along with all its comments"
+    arguments:
+      - name: "article_id"
+        description: "ID of the article to retrieve"
+        required: true
+    metadata:
+      category: "articles"
+      resources: [ "Article Resource", "Article Comments Collection" ]
+
+  - name: "author_analytics"
+    description: "Get analytics for a specific author including article stats"
+    arguments:
+      - name: "author_id"
+        description: "ID of the author"
+        required: true
+      - name: "timeframe"
+        description: "Time period for analytics"
+        enum: [ "week", "month", "quarter", "year", "all" ]
+        default: "all"
+    metadata:
+      category: "analytics"
+      resources: [ "Author Resource", "Author Articles Collection", "Article Statistics Report" ]
+
+# --------------------------------------------------------------------------
+# CONFIGURATION
+# --------------------------------------------------------------------------
+configuration:
+  server:
+    baseUrl: "https://api.blog.example.com/v1"
+    timeout: 30000
+    maxRetries: 3
+
+  authentication:
+    type: "bearer"
+    envVar: "BLOG_API_TOKEN"
+    description: "Bearer token for API authentication"
+
+  rateLimiting:
+    requestsPerMinute: 100
+    burstSize: 20
+
+  caching:
+    enabled: true
+    ttl: 300000  # 5 minutes in milliseconds
+
+  database:
+    pool:
+      min: 2
+      max: 10
+      idleTimeout: 30000
+
+# --------------------------------------------------------------------------
+# METADATA SCHEMAS (for consistent responses)
+# --------------------------------------------------------------------------
+schemas:
+  Author:
+    type: "object"
+    properties:
+      id:
+        type: "string"
+        format: "uuid"
+        readOnly: true
+      username:
+        type: "string"
+        maxLength: 255
+      email:
+        type: "string"
+        format: "email"
+      created_at:
+        type: "string"
+        format: "date-time"
+        readOnly: true
+    required: [ "id", "username", "email" ]
+
+  Article:
+    type: "object"
+    properties:
+      id:
+        type: "string"
+        format: "uuid"
+        readOnly: true
+      title:
+        type: "string"
+        maxLength: 255
+      content:
+        type: "string"
+      author_id:
+        type: "string"
+        format: "uuid"
+      author_username:
+        type: "string"
+        readOnly: true
+      is_published:
+        type: "boolean"
+      publish_date:
+        type: "string"
+        format: "date-time"
+      created_at:
+        type: "string"
+        format: "date-time"
+        readOnly: true
+      updated_at:
+        type: "string"
+        format: "date-time"
+        readOnly: true
+    required: [ "id", "title", "author_id" ]
+
+  Comment:
+    type: "object"
+    properties:
+      id:
+        type: "string"
+        format: "uuid"
+        readOnly: true
+      article_id:
+        type: "string"
+        format: "uuid"
+      article_title:
+        type: "string"
+        readOnly: true
+      author_name:
+        type: "string"
+        maxLength: 255
+      author_email:
+        type: "string"
+        format: "email"
+      content:
+        type: "string"
+      comment_date:
+        type: "string"
+        format: "date-time"
+      created_at:
+        type: "string"
+        format: "date-time"
+        readOnly: true
+    required: [ "id", "article_id", "author_name", "content" ]
+
+  Pagination:
+    type: "object"
+    properties:
+      page:
+        type: "integer"
+        minimum: 1
+      limit:
+        type: "integer"
+        minimum: 1
+        maximum: 100
+      totalItems:
+        type: "integer"
+      totalPages:
+        type: "integer"
+      hasNext:
+        type: "boolean"
+      hasPrev:
+        type: "boolean"
+    required: [ "page", "limit", "totalItems", "totalPages", "hasNext", "hasPrev" ]

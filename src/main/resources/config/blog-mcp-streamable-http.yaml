@@ -1,0 +1,60 @@
+# ==========================================================================
+# Blog MCP Streamable HTTP Configuration
+# Purpose:
+#   Enable the Blog application to be exposed via MCP over HTTP
+# ==========================================================================
+
+imports:
+  - blog-application.yaml
+
+# Override capabilities to enable only streamable MCP
+capabilities:
+  blogmcp:
+    name: blogmcp
+    description: Blog MCP API
+    domain: blog
+    exposure: streamable-mcp
+    transport: jetty
+    sources:
+      - blog-db
+    query-engine: jdbc
+    actions-specification-file: blog-actions.yaml
+    pipelines-definition-file: blog-pipelines.yaml
+
+# Override exposures to enable only streamable MCP
+exposures:
+  streamable-mcp:
+    type: mcp-streamable-http
+    enabled: true
+    binding: mcp-json-rpc
+    execution: "async"
+    config:
+      path: "/mcp/v1"
+      contextPath: "/mcp/v1"
+      displayName: "Blog MCP Service"
+      asyncTimeout: 300000
+      multipartConfig:
+        enabled: false
+      maxRequestSize: 10485760
+      allowedOrigins: [ "*" ]
+      rateLimit:
+        requestsPerMinute: 100
+      security:
+        authentication:
+          type: "api-key"
+          headerName: "X-API-Key"
+          required: true
+        authorization:
+          enabled: true
+          roles: [ "admin", "service" ]
+        cors:
+          enabled: false
+        csrf:
+          enabled: true
+
+  rest-api:
+    enabled: false
+
+  stdio-mcp:
+    enabled: false
+

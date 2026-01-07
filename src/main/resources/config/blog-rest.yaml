@@ -1,0 +1,146 @@
+# ==========================================================================
+# Blog REST API Configuration
+# Purpose:
+#   Enable the Blog application to be exposed as a REST API
+# ==========================================================================
+info:
+  version: "1.0.0"
+  name: "Blog Data Hub"
+  domain: "Blog"
+  organization: "Cheshire Corp"
+  contact: "halim.chaibi@gmail.com"
+  environment: "${ENV:-production}"
+  description: "Blog Data Hub providing API and MCP access to the Blog sample database."
+
+capabilities:
+
+  blog:
+    name: blog
+    description: Blog API
+    domain: blog
+    exposure: rest-api
+    transport: jetty
+    sources:
+      - blog-db
+    query-engine: jdbc
+    actions-specification-file: blog-actions.yaml
+    pipelines-definition-file: blog-pipelines.yaml
+
+sources:
+  blog-db:
+    type: jdbc
+    description: Blog DB PostgreSQL mode.
+    provider: io.cheshire.source.jdbc.JdbcDataSourceProviderFactory
+    schema: blog
+    config:
+      connection:
+        url: jdbc:postgresql://localhost:5432/blog_db
+        username: blog_user
+        password: blog_password
+        driver: org.postgresql.Driver
+      auto-discover-schema: true
+      pool:
+        minConnections: 1
+        maxConnections: 10
+
+query-engines:
+  jdbc:
+    engine: io.cheshire.query.engine.jdbc.JdbcQueryEngineFactory
+    sources:
+      - public
+      - information_schema
+      - blog-db
+      - plagia_buster
+    config:
+      defaultLimit: 100
+      maxLimit: 10000
+      timeoutMs: 30000
+
+exposures:
+  rest-api:
+    type: rest-http
+    enabled: true
+    binding: http-json
+    execution: "sync"               # Different execution
+    config:
+      path: "/api/v1"               # Different path
+
+      # REST-specific
+      asyncTimeout: 30000           # 30s (shorter)
+      enableSwagger: true           # REST-only feature
+      corsEnabled: true
+
+      # Different business rules
+      maxRequestSize: 5242880       # 5MB
+      authentication: "bearer"
+      rateLimit:
+        requestsPerMinute: 1000     # Higher limit
+      security:
+        authentication:
+          type: "oauth2"            # Different auth!
+          tokenEndpoint: "https://auth.example.com"
+          required: true
+
+        authorization:
+          enabled: true
+          roles: [ "user", "premium" ]
+
+        cors:
+          enabled: true             # Public API needs CORS
+          allowedOrigins: [ "https://app.example.com" ]
+          allowedMethods: [ "GET", "POST" ]
+          allowCredentials: true
+
+        rateLimit: # Per-context rate limit
+          requestsPerMinute: 1000
+
+transports:
+  jetty:
+    # === SHARED BY ALL HANDLERS ===
+    port: 9000                    # Single port for all
+    host: 0.0.0.0                 # Bind address
+    factory: io.cheshire.ServerFactory
+    # Thread Pool (shared across all contexts)
+    threadPool:
+      minThreads: 8               # Minimum threads available
+      maxThreads: 200             # Maximum concurrent requests
+      idleTimeout: 60000          # Thread idle timeout
+
+    # HTTP Configuration (applies to all)
+    http:
+      requestHeaderSize: 8192     # Max header size
+      responseHeaderSize: 8192
+      outputBufferSize: 32768
+      requestTimeout: 30000       # Global timeout
+
+    # SSL/TLS (if one handler has HTTPS, all must use HTTPS)
+    ssl:
+      enabled: true
+      protocol: TLSv1.3
+      keystorePath: /path/to/keystore.jks
+      keystorePassword: ${KEYSTORE_PASS}
+      truststorePath: /path/to/truststore.jks
+
+      # Cipher suites (applies to all)
+      includeCipherSuites:
+        - TLS_AES_256_GCM_SHA384
+        - TLS_AES_128_GCM_SHA256
+      excludeCipherSuites:
+        - TLS_RSA_.*
+
+      # Client certificates (if enabled, affects all)
+      needClientAuth: false      # Mutual TLS
+      wantClientAuth: false
+
+    # === Network Security - SHARED ===
+    security:
+      # IP filtering (applies to all handlers)
+      allowedHosts:
+        - 10.0.0.0/8
+        - 192.168.0.0/16
+      blockedHosts:
+        - 192.168.1.100
+
+      # DOS protection (shared)
+      maxConnections: 10000
+      maxConnectionsPerIP: 100

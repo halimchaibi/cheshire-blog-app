@@ -1,0 +1,182 @@
+# ==========================================================================
+# Blog Application Configuration
+# Purpose:
+#   Configure capabilities, sources, protocols, and runtime servers for the
+#   Blog application using Cheshire framework.
+# ==========================================================================
+
+# --------------------------------------------------------------------------
+# Application Information
+# --------------------------------------------------------------------------
+info:
+  version: "1.0.0"
+  name: "Blog Data Hub"
+  domain: "Blog"
+  organization: "Blog Corp"
+  contact: "blog@example.com"
+  environment: "${ENV:-development}"
+  description: "Blog application providing API and MCP access to blog articles, authors, and comments."
+
+# --------------------------------------------------------------------------
+# Capability Definitions
+# A capability represents a logical service exposed via REST, MCP, or GraphQL.
+# --------------------------------------------------------------------------
+capabilities:
+
+  blogmcp:
+    name: blogmcp
+    description: Blog MCP API
+    domain: blog
+    exposure: streamable-mcp
+    transport: jetty
+    sources:
+      - blog-db
+    query-engine: jdbc
+    actions-specification-file: blog-actions.yaml
+    pipelines-definition-file: blog-pipelines.yaml
+
+  blog:
+    name: blog
+    description: Blog REST API
+    domain: blog
+    exposure: rest-api
+    transport: jetty
+    sources:
+      - blog-db
+    query-engine: jdbc
+    actions-specification-file: blog-actions.yaml
+    pipelines-definition-file: blog-pipelines.yaml
+
+
+# --------------------------------------------------------------------------
+# Source Definitions
+# Sources represent external systems such as databases, APIs, or files.
+# --------------------------------------------------------------------------
+sources:
+  blog-db:
+    type: jdbc
+    description: Blog H2 database with MySQL mode.
+    provider: io.cheshire.source.jdbc.JdbcDataSourceProviderFactory
+    schema: blog
+    config:
+      connection:
+        url: jdbc:h2:mem:blog_db;MODE=MySQL;DB_CLOSE_DELAY=-1;INIT=RUNSCRIPT FROM 'classpath:schema.sql'
+        username: sa
+        password: ""
+        driver: org.h2.Driver
+      auto-discover-schema: true
+      pool:
+        minConnections: 1
+        maxConnections: 10
+
+# --------------------------------------------------------------------------
+# Query Engine Configuration
+# Controls execution limits and safety boundaries for query processing.
+# --------------------------------------------------------------------------
+query-engines:
+  jdbc:
+    engine: io.cheshire.query.engine.jdbc.JdbcQueryEngineFactory
+    sources:
+      - public
+      - information_schema
+      - blog-db
+    config:
+      defaultLimit: 100
+      maxLimit: 10000
+      timeoutMs: 30000
+
+# --------------------------------------------------------------------------
+# Protocol / Transport Configuration
+# Defines enabled transports and their parameters.
+# --------------------------------------------------------------------------
+exposures:
+  # === MCP HANDLER - STDIO CONFIG ===
+  stdio-mcp:
+    type: mcp-stdio
+    enabled: false
+    binding: mcp-stdio
+    execution: "sync"
+    config:
+      secnamety:
+        authentication:
+          type: "none"
+
+  # === MCP HANDLER - STREAMABLE HTTP CONFIG ===
+  streamable-mcp:
+    type: mcp-streamable-http
+    enabled: true
+    binding: mcp-json-rpc
+    execution: "async"
+    config:
+      path: "/mcp/v1"
+      contextPath: "/mcp/v1"
+      displayName: "Blog MCP Service"
+      asyncTimeout: 300000
+      multipartConfig:
+        enabled: false
+      maxRequestSize: 10485760
+      allowedOrigins: [ "*" ]
+      rateLimit:
+        requestsPerMinute: 100
+      secnamety:
+        authentication:
+          type: "api-key"
+          headerName: "X-API-Key"
+          required: true
+        authorization:
+          enabled: true
+          roles: [ "admin", "service" ]
+        cors:
+          enabled: false
+        csrf:
+          enabled: true
+
+  # === REST API HANDLER CONFIG ===
+  rest-api:
+    type: rest-http
+    enabled: true
+    binding: http-json
+    execution: "sync"
+    config:
+      path: "/api/v1"
+      asyncTimeout: 30000
+      enableSwagger: true
+      corsEnabled: true
+      maxRequestSize: 5242880
+      authentication: "bearer"
+      rateLimit:
+        requestsPerMinute: 1000
+      secnamety:
+        authentication:
+          type: "none"
+          required: false
+        authorization:
+          enabled: false
+          roles: [ "user", "premium" ]
+        cors:
+          enabled: true
+          allowedOrigins: [ "*" ]
+          allowedMethods: [ "GET", "POST", "PUT", "DELETE", "OPTIONS" ]
+          allowedHeaders: [ "*" ]
+          exposedHeaders: [ "Content-Type", "Authorization" ]
+          allowCredentials: true
+          maxAge: 3600
+        csrf:
+          enabled: false
+
+# --------------------------------------------------------------------------
+# Runtime / Server Configuration
+# --------------------------------------------------------------------------
+transports:
+  jetty:
+    type: jetty
+    config:
+      host: "0.0.0.0"
+      port: 8080
+      contextPath: "/"
+      idleTimeout: 30000
+      threads:
+        minThreads: 10
+        maxThreads: 200
+      ssl:
+        enabled: false
