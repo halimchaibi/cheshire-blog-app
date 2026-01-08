@@ -1,6 +1,6 @@
 # Blog Application with Cheshire Framework
 
-A fully functional blog application built using the Cheshire framework, demonstrating how to expose database operations through multiple protocols (REST API, MCP stdio, MCP HTTP).
+A sample blog application built using the Cheshire framework, demonstrating how to expose database operations through multiple protocols (REST API, MCP stdio, MCP HTTP).
 
 ## Features
 
