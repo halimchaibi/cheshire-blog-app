@@ -42,9 +42,10 @@ import java.util.Optional;
 @Slf4j
 public final class BlogApp {
 
-    // java -Dorg.slf4j.simpleLogger.defaultLogLevel=trace --enable-preview -jar target/blog-app-1.0-SNAPSHOT.jar blog-rest.yaml
-    // java -Dorg.slf4j.simpleLogger.defaultLogLevel=trace --enable-preview -jar target/blog-app-1.0-SNAPSHOT.jar blog-rest.yaml
-    private static final String DEFAULT_CONFIG = "blog-rest.yaml";
+    // java -Dorg.slf4j.simpleLogger.defaultLogLevel=trace --enable-preview -jar target/blog-app-1.0-SNAPSHOT.jar --rest
+    // java -Dorg.slf4j.simpleLogger.defaultLogLevel=trace --enable-preview -jar target/blog-app-1.0-SNAPSHOT.jar --mcp-stdio
+    // java -Dorg.slf4j.simpleLogger.defaultLogLevel=trace --enable-preview -jar target/blog-app-1.0-SNAPSHOT.jar --mcp-http
+    private static final String DEFAULT_CONFIG = "blog-mcp-stdio-claude.yaml";
     private static final String REST_CONFIG = "blog-rest.yaml";
     private static final String MCP_STDIO_CONFIG = "blog-mcp-stdio-claude.yaml";
     private static final String MCP_HTTP_CONFIG = "blog-mcp-streamable-http.yaml";
