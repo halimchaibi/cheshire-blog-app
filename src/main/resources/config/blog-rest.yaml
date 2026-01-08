@@ -13,7 +13,6 @@ info:
   description: "Blog Data Hub providing API and MCP access to the Blog sample database."
 
 capabilities:
-
   blog:
     name: blog
     description: Blog API
@@ -23,8 +22,8 @@ capabilities:
     sources:
       - blog-db
     query-engine: jdbc
-    actions-specification-file: blog-actions.yaml
-    pipelines-definition-file: blog-pipelines.yaml
+    actions-specification-file: blog-actions-claude.yaml
+    pipelines-definition-file: blog-pipelines-claude.yaml
 
 sources:
   blog-db:

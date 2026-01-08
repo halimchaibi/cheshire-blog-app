@@ -47,7 +47,7 @@ create_author:
           "operation": "INSERT",
           "source": { "table": "authors" },
           "columns": [
-            { "field": "id", "function": "gen_random_uuid()" },
+            { "field": "id", "function": "UUID()" },
             { "field": "username", "param": "username" },
             { "field": "email", "param": "email" },
             { "field": "created_at", "function": "CURRENT_TIMESTAMP" }
@@ -291,7 +291,7 @@ create_article:
           "operation": "INSERT",
           "source": { "table": "articles" },
           "columns": [
-            { "field": "id", "function": "gen_random_uuid()" },
+            { "field": "id", "function": "UUID()" },
             { "field": "title", "param": "title" },
             { "field": "content", "param": "content" },
             { "field": "author_id", "param": "author_id" },
@@ -632,7 +632,7 @@ create_comment:
           "operation": "INSERT",
           "source": { "table": "comments" },
           "columns": [
-            { "field": "id", "function": "gen_random_uuid()" },
+            { "field": "id", "function": "UUID()" },
             { "field": "article_id", "param": "article_id" },
             { "field": "author_name", "param": "author_name" },
             { "field": "author_email", "param": "author_email", "nullable": true },
@@ -900,15 +900,7 @@ list_authors:
           "filters": {
             "op": "AND",
             "conditions": [
-              { 
-                "op": "OR",
-                "conditions": [
-                  { "field": "a.username", "op": "ILIKE", "param": "search", "optional": true },
-                  { "field": "a.email", "op": "ILIKE", "param": "search", "optional": true }
-                ],
-                "optional": true
-              },
-              { "field": "a.created_at", "op": ">=", "param": "created_after", "optional": true }
+              { "field": "a.username", "op": "LIKE", "param": "username", "optional": true }
             ]
           },
           "groupBy": ["a.id", "a.username", "a.email", "a.created_at"],

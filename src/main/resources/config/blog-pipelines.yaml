@@ -52,7 +52,7 @@ create_author:
             { "field": "email", "param": "email" },
             { "field": "created_at", "function": "CURRENT_TIMESTAMP" }
           ],
-          "returning": ["id", "username", "email", "created_at"]
+          "returning": ["id", "username", "email"]
         }
       implementation: io.blog.pipeline.BlogExecutor
       description: >
@@ -135,7 +135,7 @@ update_author:
               { "field": "id", "op": "=", "param": "id" }
             ]
           },
-          "returning": ["id", "username", "email", "created_at"]
+          "returning": ["id", "username", "email"]
         }
       implementation: io.blog.pipeline.BlogExecutor
       description: >
@@ -294,13 +294,13 @@ create_article:
             { "field": "id", "function": "gen_random_uuid()" },
             { "field": "title", "param": "title" },
             { "field": "content", "param": "content" },
-            { "field": "author_id", "param": "author_id" },
+            { "field": "author_id", "param": "CAST(author_id AS uuid)" },
             { "field": "is_published", "param": "is_published", "default": false },
             { "field": "publish_date", "param": "publish_date", "nullable": true },
             { "field": "created_at", "function": "CURRENT_TIMESTAMP" },
             { "field": "updated_at", "function": "CURRENT_TIMESTAMP" }
           ],
-          "returning": ["id", "title", "content", "author_id", "is_published", "publish_date", "created_at", "updated_at"]
+          "returning": ["id", "title", "content", "author_id", "is_published"]
         }
       implementation: io.blog.pipeline.BlogExecutor
       description: >
@@ -393,7 +393,7 @@ update_article:
               { "field": "id", "op": "=", "param": "id" }
             ]
           },
-          "returning": ["id", "title", "content", "author_id", "is_published", "publish_date", "created_at", "updated_at"]
+          "returning": ["id", "title", "content", "author_id", "is_published"]
         }
       implementation: io.blog.pipeline.BlogExecutor
       description: >
@@ -549,7 +549,7 @@ publish_article:
               { "field": "id", "op": "=", "param": "id" }
             ]
           },
-          "returning": ["id", "title", "is_published", "publish_date", "updated_at"]
+          "returning": ["id", "title", "is_published"]
         }
       implementation: io.blog.pipeline.BlogExecutor
       description: >
@@ -640,7 +640,7 @@ create_comment:
             { "field": "comment_date", "function": "CURRENT_TIMESTAMP" },
             { "field": "created_at", "function": "CURRENT_TIMESTAMP" }
           ],
-          "returning": ["id", "article_id", "author_name", "author_email", "content", "comment_date", "created_at"]
+          "returning": ["id", "article_id", "author_name", "author_email", "content"]
         }
       implementation: io.blog.pipeline.BlogExecutor
       description: >
@@ -728,7 +728,7 @@ update_comment:
               { "field": "id", "op": "=", "param": "id" }
             ]
           },
-          "returning": ["id", "article_id", "author_name", "author_email", "content", "comment_date", "created_at"]
+          "returning": ["id", "article_id", "author_name", "author_email", "content"]
         }
       implementation: io.blog.pipeline.BlogExecutor
       description: >

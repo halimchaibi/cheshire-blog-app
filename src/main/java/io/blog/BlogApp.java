@@ -5,7 +5,12 @@ import io.cheshire.core.CheshireSession;
 import io.cheshire.runtime.CheshireRuntime;
 import lombok.extern.slf4j.Slf4j;
 
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.PrintStream;
 import java.time.Duration;
+import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.Optional;
 
@@ -37,9 +42,11 @@ import java.util.Optional;
 @Slf4j
 public final class BlogApp {
 
+    // java -Dorg.slf4j.simpleLogger.defaultLogLevel=trace --enable-preview -jar target/blog-app-1.0-SNAPSHOT.jar blog-rest.yaml
+    // java -Dorg.slf4j.simpleLogger.defaultLogLevel=trace --enable-preview -jar target/blog-app-1.0-SNAPSHOT.jar blog-rest.yaml
     private static final String DEFAULT_CONFIG = "blog-rest.yaml";
     private static final String REST_CONFIG = "blog-rest.yaml";
-    private static final String MCP_STDIO_CONFIG = "blog-mcp-stdio.yaml";
+    private static final String MCP_STDIO_CONFIG = "blog-mcp-stdio-claude.yaml";
     private static final String MCP_HTTP_CONFIG = "blog-mcp-streamable-http.yaml";
 
     /**
@@ -54,12 +61,20 @@ public final class BlogApp {
      *
      * @param args command-line arguments for configuration selection
      */
-    public static void main(final String[] args) {
+    public static void main(final String[] args) throws IOException {
+        System.setErr(new PrintStream(new FileOutputStream("/tmp/mcp-debug.log", true)));
+
         log.info("Starting Blog Application...");
+
+        System.setProperty("jackson.json.discovery", "true");
+        System.setProperty("jackson.serialization.write_dates_as_timestamps", "false");
 
         final String configFile = selectConfigFromArgs(args);
         System.setProperty("cheshire.config", configFile);
+
         log.info("Using configuration: {}", configFile);
+
+        System.err.flush();
 
         try {
             final CheshireSession session =
@@ -71,6 +86,8 @@ public final class BlogApp {
                     CheshireRuntime.expose(session).start();
 
             log.info("Blog application started successfully");
+            System.err.println("Runtime started, awaiting termination...");
+            System.err.flush();
             runtime.awaitTermination();
 
         } catch (final Exception e) {
