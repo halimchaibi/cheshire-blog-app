@@ -1,0 +1,2 @@
+#!/bin/bash
+/usr/lib/jvm/java-21-openjdk-amd64/bin/java --enable-preview -jar /home/hchaibi/workspace/idea-projects/cheshire-framework/cheshire-blog-app/target/blog-app-1.0-SNAPSHOT.jar --config blog-mcp-stdio.yaml --log-file /tmp/blog-mcp-stdio.log --redirect-stderr
