@@ -22,8 +22,8 @@ capabilities:
     sources:
       - blog-db
     query-engine: jdbc
-    actions-specification-file: blog-actions-claude.yaml
-    pipelines-definition-file: blog-pipelines-claude.yaml
+    actions-specification-file: blog-actions.yaml
+    pipelines-definition-file: blog-pipelines.yaml
 
 sources:
   blog-db:
@@ -39,17 +39,18 @@ sources:
         driver: org.postgresql.Driver
       auto-discover-schema: true
       pool:
-        minConnections: 1
-        maxConnections: 10
+        poolName: BlogAppPool
+        minimumIdle: 1
+        maximumPoolSize: 10
+        connectionTimeout: 30_000
+        idleTimeout: 600_000
+        maxLifetime: 1_800_000
 
 query-engines:
   jdbc:
     engine: io.cheshire.query.engine.jdbc.JdbcQueryEngineFactory
     sources:
-      - public
-      - information_schema
       - blog-db
-      - plagia_buster
     config:
       defaultLimit: 100
       maxLimit: 10000
@@ -143,3 +144,21 @@ transports:
       # DOS protection (shared)
       maxConnections: 10000
       maxConnectionsPerIP: 100
+
+# To use H2 in PostgreSQL mode, replace the sources section with the following(WARNING: this is just for testing purposes, doesn't support full PostgreSQL features):
+#sources:
+#  blog-db:
+#    type: jdbc
+#    description: Blog DB PostgreSQL mode.
+#    provider: io.cheshire.source.jdbc.JdbcDataSourceProviderFactory
+#    schema: blog
+#    config:
+#      connection:
+#        url: "jdbc:h2:mem:blogdb;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH;DB_CLOSE_DELAY=-1;INIT=runscript FROM 'classpath:schema.sql'"
+#        driver: "org.h2.Driver"
+#        user: "sa"
+#        password: ""
+#      auto-discover-schema: true
+#      pool:
+#        minConnections: 1
+#        maxConnections: 10

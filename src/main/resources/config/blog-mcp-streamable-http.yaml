@@ -96,7 +96,7 @@ exposures:
 transports:
   jetty:
     # === SHARED BY ALL HANDLERS ===
-    port: 9001                    # Single port for all
+    port: 9000                    # Single port for all
     host: 0.0.0.0                 # Bind address
     factory: io.cheshire.ServerFactory
     # Thread Pool (shared across all contexts)

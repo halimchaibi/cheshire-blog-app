@@ -1,15 +1,16 @@
 package io.blog.pipeline;
 
 import io.cheshire.spi.pipeline.Context;
-import io.cheshire.spi.pipeline.MaterializedInput;
+import io.cheshire.core.pipeline.MaterializedInput;
 import io.cheshire.spi.pipeline.step.PreProcessor;
-import io.blog.BlogApp;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Instant;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.function.BinaryOperator;
+import java.util.stream.Collector;
 import java.util.stream.Collectors;
 
 /**
@@ -80,22 +81,22 @@ public final class BlogInputProcessor implements PreProcessor<MaterializedInput>
     @Override
     public MaterializedInput apply(final MaterializedInput preInput, final Context ctx) {
 
-        final Map<String, Object> transformedData = preInput.data().entrySet().stream()
+        final LinkedHashMap<String, Object> transformedData = preInput.data().entrySet().stream()
                 .filter(this::filterByEntry)
                 .collect(Collectors.toMap(
                         entry -> transformKey(entry.getKey()),
                         entry -> transformValue(entry.getValue()),
                         overwriteWithNew,
-                        HashMap::new
+                        LinkedHashMap::new
                 ));
 
-        final Map<String, Object> transformedMetaData = preInput.metadata().entrySet().stream()
+        final LinkedHashMap<String, Object> transformedMetaData = preInput.metadata().entrySet().stream()
                 .filter(this::filterByEntry)
                 .collect(Collectors.toMap(
                         Map.Entry::getKey,
                         Map.Entry::getValue,
                         overwriteWithNew,
-                        HashMap::new
+                        LinkedHashMap::new
                 ));
 
         transformedMetaData.put("pre-processor-executed-at", Instant.now().toString());
@@ -158,6 +159,15 @@ public final class BlogInputProcessor implements PreProcessor<MaterializedInput>
      */
     private String transformKey(final String key) {
         return key;
+    }
+
+    public static <K, V> Collector<Map.Entry<K, V>, ?, LinkedHashMap<K, V>> toLinkedMap() {
+        return Collectors.toMap(
+                Map.Entry::getKey,
+                Map.Entry::getValue,
+                (u, v) -> { throw new IllegalStateException(String.format("Duplicate key %s", u)); },
+                LinkedHashMap::new
+        );
     }
 }
 

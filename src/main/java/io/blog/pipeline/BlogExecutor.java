@@ -7,8 +7,8 @@ import io.cheshire.query.engine.jdbc.SqlTemplateQueryBuilder;
 import io.cheshire.runtime.CheshireRuntimeError;
 import io.cheshire.source.jdbc.JdbcDataSourceProvider;
 import io.cheshire.spi.pipeline.Context;
-import io.cheshire.spi.pipeline.MaterializedInput;
-import io.cheshire.spi.pipeline.MaterializedOutput;
+import io.cheshire.core.pipeline.MaterializedInput;
+import io.cheshire.core.pipeline.MaterializedOutput;
 import io.cheshire.spi.pipeline.exception.PipelineException;
 import io.cheshire.spi.pipeline.step.Executor;
 import io.cheshire.spi.query.engine.QueryEngine;
@@ -103,12 +103,12 @@ public final class BlogExecutor implements Executor<MaterializedInput, Materiali
             throws PipelineException {
 
         try {
+            log.debug("Executing materialized query {}", executorInput);
             ctx.putIfAbsent("executed-at", Instant.now().toString());
 
-            final Map<String, Object> outputMetaData =
+            final LinkedHashMap<String, Object> outputMetaData =
                     new LinkedHashMap<>(executorInput.metadata());
             outputMetaData.put("executor-name", name);
-            outputMetaData.put("executor-template-received", template);
 
             final ResolvedQuery resolved =
                     buildResolvedQuery(template, executorInput.data());
@@ -120,7 +120,8 @@ public final class BlogExecutor implements Executor<MaterializedInput, Materiali
             final MapQueryResult result =
                     executeJdbcQuery(resolved.request(), executorInput);
 
-            final Map<String, Object> data = toMap(result);
+            final LinkedHashMap<String, Object> data = toMap(result);
+            log.debug("Returning materialized output {}", data);
             return MaterializedOutput.of(data, outputMetaData);
 
         } catch (final QueryExecutionException e) {
@@ -361,15 +362,19 @@ public final class BlogExecutor implements Executor<MaterializedInput, Materiali
      * @param result query execution result from engine
      * @return map suitable for serialization to JSON response
      */
-    private Map<String, Object> toMap(final MapQueryResult result) {
+    private LinkedHashMap<String, Object> toMap(final MapQueryResult result) {
 
-        final Map<String, Object> count = new LinkedHashMap<>();
-        count.put("totalRows", result.rowCount());
-        count.put("pageSize", result.rows().size());
+        final LinkedHashMap<String, Object> count = new LinkedHashMap<>();
+        count.put("total_found",
+                result.rows().stream().findFirst()
+                        .map(row -> row.get("total_found"))
+                        .orElse(result.rows().size())
+        );
+        count.put("page_size", result.rows().size());
 
-        final Map<String, Object> response = new LinkedHashMap<>();
-        response.put("data", result.rows());
+        final LinkedHashMap<String, Object> response = new LinkedHashMap<>();
         response.put("count", count);
+        response.put("data", result.rows());
         response.put("columns", result.columns());
 
         return response;

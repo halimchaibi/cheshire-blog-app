@@ -1,10 +1,9 @@
 package io.blog.pipeline;
 
 import io.cheshire.spi.pipeline.Context;
-import io.cheshire.spi.pipeline.MaterializedOutput;
+import io.cheshire.core.pipeline.MaterializedOutput;
 import io.cheshire.spi.pipeline.step.PostProcessor;
 import io.cheshire.spi.query.result.MapQueryResult;
-import io.blog.BlogApp;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Instant;
@@ -108,7 +107,7 @@ public final class BlogOutputProcessor implements PostProcessor<MaterializedOutp
      * @param result query execution result from engine
      * @return map with pagination envelope
      */
-    private Map<String, Object> toMap(final MapQueryResult result) {
+    private LinkedHashMap<String, Object> toMap(final MapQueryResult result) {
 
         final Map<String, Object> pagination = new LinkedHashMap<>();
         pagination.put("totalRows", result.rowCount());
@@ -116,7 +115,7 @@ public final class BlogOutputProcessor implements PostProcessor<MaterializedOutp
         pagination.put("currentPage", 1);
         pagination.put("totalPages", 1);
 
-        final Map<String, Object> response = new LinkedHashMap<>();
+        final LinkedHashMap<String, Object> response = new LinkedHashMap<>();
         response.put("data", result.rows());
         response.put("pagination", pagination);
         response.put("columns", result.columns());

@@ -21,7 +21,7 @@ info:
 # --------------------------------------------------------------------------
 capabilities:
   blog:
-    name: blogstdio
+    name: blog
     description: Blog stdio MCP API
     domain: blog
     exposure: stdio-mcp
@@ -29,8 +29,8 @@ capabilities:
     sources:
       - blog-db
     query-engine: jdbc
-    actions-specification-file: blog-actions-claude.yaml
-    pipelines-definition-file: blog-pipelines-claude.yaml
+    actions-specification-file: blog-actions.yaml
+    pipelines-definition-file: blog-pipelines.yaml
 
 sources:
   blog-db:

@@ -4,13 +4,15 @@ import io.cheshire.core.CheshireBootstrap;
 import io.cheshire.core.CheshireSession;
 import io.cheshire.runtime.CheshireRuntime;
 import lombok.extern.slf4j.Slf4j;
+import picocli.CommandLine;
 
-import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.PrintStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.time.Duration;
-import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.Optional;
 
@@ -30,9 +32,17 @@ import java.util.Optional;
  * <p>
  * Configuration Selection:
  * <ul>
- *   <li>{@code --rest}: REST API on /api/v1 (default)</li>
- *   <li>{@code --mcp-stdio}: MCP via standard I/O for direct integration</li>
- *   <li>{@code --mcp-http}: MCP over HTTP on /mcp/v1</li>
+ *   <li>{@code --config <file>}: Main configuration file (default: blog-rest.yaml)</li>
+ *   <li>{@code --log-file <path>}: Log file path (default: /tmp/blog-app.log)</li>
+ *   <li>{@code --log-metrics}: Enable runtime metrics logging</li>
+ *   <li>{@code --redirect-stderr}: Redirect stderr to log file</li>
+ * </ul>
+ * <p>
+ * Configuration Files:
+ * <ul>
+ *   <li>{@code blog-rest.yaml}: Expose via REST API on HTTP</li>
+ *   <li>{@code blog-mcp-stdio.yaml}: Expose via MCP stdio for CLI/AI assistants</li>
+ *   <li>{@code blog-mcp-streamable-http.yaml}: Expose via MCP over HTTP with SSE</li>
  * </ul>
  *
  * @see CheshireBootstrap
@@ -40,120 +50,80 @@ import java.util.Optional;
  * @see CheshireRuntime
  */
 @Slf4j
-public final class BlogApp {
+@CommandLine.Command(name = "blog-app", mixinStandardHelpOptions = true, version = "1.0",
+        description = "Starts the Cheshire Blog Application.")
+public final class BlogApp implements Runnable {
 
-    // java -Dorg.slf4j.simpleLogger.defaultLogLevel=trace --enable-preview -jar target/blog-app-1.0-SNAPSHOT.jar --rest
-    // java -Dorg.slf4j.simpleLogger.defaultLogLevel=trace --enable-preview -jar target/blog-app-1.0-SNAPSHOT.jar --mcp-stdio
-    // java -Dorg.slf4j.simpleLogger.defaultLogLevel=trace --enable-preview -jar target/blog-app-1.0-SNAPSHOT.jar --mcp-http
-    private static final String DEFAULT_CONFIG = "blog-mcp-stdio-claude.yaml";
-    private static final String REST_CONFIG = "blog-rest.yaml";
-    private static final String MCP_STDIO_CONFIG = "blog-mcp-stdio-claude.yaml";
-    private static final String MCP_HTTP_CONFIG = "blog-mcp-streamable-http.yaml";
+    @CommandLine.Option(names = {"-c", "--config"}, description = "Path to the config file.", defaultValue = "blog-rest.yaml")
+    private String configFile;
+
+    @CommandLine.Option(names = {"-l", "--log-file"}, description = "Log file path.", defaultValue = "/tmp/blog-app.log")
+    private String logFile;
+
+    @CommandLine.Option(names = {"-m", "--log-metrics"}, description = "Enable runtime metrics logging.")
+    private boolean logMetrics;
+
+    @CommandLine.Option(names = {"-r", "--redirect-stderr"}, description = "Redirect stderr to log file.")
+    private boolean redirectStdIO;
+
+    private static final String DEFAULT_CONFIG = "blog-rest.yaml";
+    private static final String DEFAULT_LOG_FILE ="blog-app.log";
 
     /**
      * Application entry point.
      * <p>
      * Accepts CLI arguments to select the exposure configuration:
      * <pre>
-     * java -jar blog-app.jar --rest       # REST API mode (default)
-     * java -jar blog-app.jar --mcp-stdio  # MCP stdio mode
-     * java -jar blog-app.jar --mcp-http   # MCP HTTP mode
+     * java -jar blog-app.jar                                      # REST API mode (default)
+     * java -jar blog-app.jar --config blog-rest.yaml              # REST API mode (explicit)
+     * java -jar blog-app.jar --config blog-mcp-stdio.yaml         # MCP stdio mode
+     * java -jar blog-app.jar --config blog-mcp-streamable-http.yaml  # MCP HTTP mode
      * </pre>
      *
      * @param args command-line arguments for configuration selection
      */
-    public static void main(final String[] args) throws IOException {
-        System.setErr(new PrintStream(new FileOutputStream("/tmp/mcp-debug.log", true)));
 
-        log.info("Starting Blog Application...");
+    public static void main(final String[] args) {
+        int exitCode = new CommandLine(new BlogApp()).execute(args);
+        System.exit(exitCode);
+    }
 
+    @Override
+    public void run() {
+        try {
+            setupEnvironment();
+
+            final CheshireSession session = CheshireBootstrap
+                    .fromClasspath("config")
+                    .build();
+
+            final CheshireRuntime runtime = CheshireRuntime.expose(session).start();
+
+            if (logMetrics) {
+                log.debug("Metrics observation enabled.");
+                logMetricsObserver(runtime);
+            }
+
+            log.info("Blog application started successfully using: {}", configFile);
+
+            runtime.awaitTermination();
+        } catch (Exception e) {
+            log.error("Fatal startup error", e);
+        }
+    }
+
+    private void setupEnvironment() throws IOException {
         System.setProperty("jackson.json.discovery", "true");
         System.setProperty("jackson.serialization.write_dates_as_timestamps", "false");
-
-        final String configFile = selectConfigFromArgs(args);
         System.setProperty("cheshire.config", configFile);
 
-        log.info("Using configuration: {}", configFile);
-
-        System.err.flush();
-
-        try {
-            final CheshireSession session =
-                    CheshireBootstrap
-                            .fromClasspath("config")
-                            .build();
-
-            final CheshireRuntime runtime =
-                    CheshireRuntime.expose(session).start();
-
-            log.info("Blog application started successfully");
-            System.err.println("Runtime started, awaiting termination...");
-            System.err.flush();
-            runtime.awaitTermination();
-
-        } catch (final Exception e) {
-            log.error("Fatal startup error", e);
-            System.exit(1);
+        if (redirectStdIO) {
+            Path path = Paths.get(logFile);
+            if (path.getParent() != null) Files.createDirectories(path.getParent());
+            System.setErr(new PrintStream(new FileOutputStream(path.toFile(), true)));;
         }
     }
 
-    /**
-     * Selects the configuration file based on command-line arguments.
-     * <p>
-     * Scans arguments for {@code --rest}, {@code --mcp-stdio}, or {@code --mcp-http} flags.
-     * Falls back to {@link #DEFAULT_CONFIG} if no valid argument is found.
-     *
-     * @param args command-line arguments array
-     * @return selected configuration filename
-     */
-    private static String selectConfigFromArgs(final String[] args) {
-        if (args.length == 0) {
-            log.info("No arguments provided, using default configuration: {}", DEFAULT_CONFIG);
-            return DEFAULT_CONFIG;
-        }
-
-        final Optional<String> configArg = Arrays.stream(args)
-                .filter(arg -> arg.startsWith("--"))
-                .findFirst();
-
-        return configArg
-                .map(BlogApp::mapArgToConfig)
-                .orElse(DEFAULT_CONFIG);
-    }
-
-    /**
-     * Maps a command-line argument to its corresponding configuration file.
-     * <p>
-     * Supported mappings:
-     * <ul>
-     *   <li>{@code --rest} → {@link #REST_CONFIG}</li>
-     *   <li>{@code --mcp-stdio} → {@link #MCP_STDIO_CONFIG}</li>
-     *   <li>{@code --mcp-http} → {@link #MCP_HTTP_CONFIG}</li>
-     * </ul>
-     *
-     * @param arg command-line argument starting with {@code --}
-     * @return configuration filename, or {@link #DEFAULT_CONFIG} if argument is unrecognized
-     */
-    private static String mapArgToConfig(final String arg) {
-        return switch (arg) {
-            case "--rest" -> {
-                log.info("REST API mode selected");
-                yield REST_CONFIG;
-            }
-            case "--mcp-stdio" -> {
-                log.info("MCP stdio mode selected");
-                yield MCP_STDIO_CONFIG;
-            }
-            case "--mcp-http" -> {
-                log.info("MCP HTTP mode selected");
-                yield MCP_HTTP_CONFIG;
-            }
-            default -> {
-                log.warn("Unknown argument: {}, using default configuration", arg);
-                yield DEFAULT_CONFIG;
-            }
-        };
-    }
 
     /**
      * Starts a background metrics observer for runtime health monitoring.
@@ -165,7 +135,7 @@ public final class BlogApp {
      *
      * @param runtime the CheshireRuntime instance to monitor
      */
-    private static void startMetricsObserver(final CheshireRuntime runtime) {
+    private static void logMetricsObserver(final CheshireRuntime runtime) {
         Thread.ofVirtual().name("metrics-observer").start(() -> {
             while (runtime.isRunning()) {
                 try {

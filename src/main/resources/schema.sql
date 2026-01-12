@@ -42,7 +42,7 @@ CREATE TABLE IF NOT EXISTS Comments (
 );
 
 -- Insert test data into Authors
-INSERT INTO Authors (id, username, email) VALUES
+MERGE INTO Authors (id, username, email) VALUES
 (RANDOM_UUID(), 'john_doe', 'john@example.com'),
 (RANDOM_UUID(), 'jane_smith', 'jane@example.com'),
 (RANDOM_UUID(), 'bob_writer', 'bob@example.com'),
@@ -133,7 +133,7 @@ INSERT INTO Articles (id, title, content, publish_date, is_published, author_id)
 );
 
 -- Insert test data into Comments
-INSERT INTO Comments (id, article_id, author_name, author_email, content, comment_date) VALUES
+MERGE INTO Comments (id, article_id, author_name, author_email, content, comment_date) VALUES
 -- Comments for "Getting Started with SQL"
 (
     RANDOM_UUID(),

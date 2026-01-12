@@ -27,6 +27,7 @@
         <lombok.version>1.18.42</lombok.version>
         <slf4j.version>2.0.17</slf4j.version>
         <h2.version>2.4.240</h2.version>
+        <postgres.version>42.7.8</postgres.version>
         <calcite.version>1.41.0</calcite.version>
         <hikari.version>7.0.2</hikari.version>
         <swagger.version>2.2.22</swagger.version>
@@ -83,6 +84,18 @@
             <groupId>com.h2database</groupId>
             <artifactId>h2</artifactId>
             <version>${h2.version}</version>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <version>${postgres.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.github.jsqlparser</groupId>
+            <artifactId>jsqlparser</artifactId>
+            <version>5.3</version>
+            <scope>compile</scope>
         </dependency>
         <dependency>
             <groupId>net.minidev</groupId>
@@ -105,10 +118,9 @@
             <version>2.13.2</version>
         </dependency>
         <dependency>
-            <groupId>org.postgresql</groupId>
-            <artifactId>postgresql</artifactId>
-            <version>42.7.8</version>
-            <scope>runtime</scope>
+            <groupId>info.picocli</groupId>
+            <artifactId>picocli</artifactId>
+            <version>4.7.6</version>
         </dependency>
         <dependency>
             <groupId>org.junit.jupiter</groupId>
