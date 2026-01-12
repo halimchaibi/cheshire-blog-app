@@ -1,0 +1,1734 @@
+openapi: 3.0.3
+info:
+  title: Blog API - Cheshire Framework
+  description: |
+    Comprehensive REST API for a blog system built with the Cheshire Framework. This API provides complete CRUD operations for Authors, Articles, and Comments with advanced filtering, full-text search, pagination, and comprehensive statistics.
+    
+    ## Features
+    - **Author Management**: Create, update, delete, and query authors with article/comment statistics
+    - **Article Management**: Full CRUD with publishing workflow, advanced search, and content filtering  
+    - **Comment System**: Create and manage comments with rich filtering capabilities
+    - **Statistics & Reporting**: Comprehensive system-wide statistics and analytics
+    - **Advanced Filtering**: Full-text search using PostgreSQL tsvector, date ranges, content length filters
+    - **Pagination**: Consistent pagination across all list endpoints
+    - **Cascade Operations**: Automatic cascade delete (author → articles → comments)
+    
+    ## Data Validation
+    All endpoints include comprehensive validation:
+    - UUID format validation for IDs
+    - Email format validation
+    - String length constraints
+    - Pattern matching (e.g., username alphanumeric)
+    - Required vs optional field enforcement
+    
+    ## Database Schema
+    - **Authors**: Blog authors with username and email (unique constraints)
+    - **Articles**: Blog articles with title, content, and publication status
+    - **Comments**: Comments on articles with author information
+    
+    ## Error Handling
+    The API returns standard HTTP status codes:
+    - `200 OK`: Successful GET/PUT/DELETE request
+    - `201 Created`: Successful POST request
+    - `400 Bad Request`: Invalid input or validation error
+    - `403 Forbidden`: Operation not allowed (e.g., commenting on unpublished article)
+    - `404 Not Found`: Resource not found
+    - `409 Conflict`: Duplicate resource (username/email already exists)
+    - `500 Internal Server Error`: Server-side error
+    
+  version: 1.0.0
+  contact:
+    name: Cheshire Framework
+    url: https://github.com/cheshire-framework
+  
+servers:
+  - url: http://localhost:9000/api/v1/blog
+    description: Local development server
+
+tags:
+  - name: Authors
+    description: Operations for managing blog authors
+  - name: Articles  
+    description: Operations for managing blog articles
+  - name: Comments
+    description: Operations for managing comments
+  - name: Statistics
+    description: System-wide statistics and analytics
+
+paths:
+  /list_authors:
+    get:
+      tags:
+        - Authors
+      summary: List Authors
+      description: |
+        Retrieve a paginated collection of authors from the blog system with powerful filtering capabilities.
+        
+        **Search Capabilities:**
+        - Wildcard search across username and email
+        - Full-text search in author's article titles/content
+        - Date range filtering for author creation
+        
+        **Statistics Included:**
+        - Total article count per author
+        - Published article count
+        - Comment count on author's articles
+        - Latest publication date
+        
+        **Pagination:**
+        - Default: 50 authors per page
+        - Configurable from 1-100 per page
+        - Includes total count and page navigation metadata
+      operationId: listAuthors
+      parameters:
+        - $ref: '#/components/parameters/SearchAuthor'
+        - $ref: '#/components/parameters/CreatedAfter'
+        - $ref: '#/components/parameters/CreatedBefore'
+        - $ref: '#/components/parameters/SearchContent'
+        - $ref: '#/components/parameters/MinComments'
+        - $ref: '#/components/parameters/MinArticles'
+        - $ref: '#/components/parameters/HasPublished'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Sort'
+        - $ref: '#/components/parameters/SortDir'
+      responses:
+        '200':
+          description: Successfully retrieved authors list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthorListResponse'
+              examples:
+                success:
+                  summary: Successful response with pagination
+                  value:
+                    success: true
+                    count:
+                      total_found: 116
+                      page_size: 10
+                    data:
+                      - id: 7a180515-2105-4e8e-9c20-0e08a694ffeb
+                        username: amber86
+                        email: michael89@example.net
+                        created_at: '2025-11-28T04:15:38'
+                        article_count: 14
+                        published_count: 11
+                        comment_count: 103
+                        latest_publication: '2025-11-07T18:21:47'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  
+  /create_author:
+    get:
+      tags:
+        - Authors
+      summary: Create Author
+      description: |
+        Create a new author record in the blog system.
+        
+        **Required Fields:**
+        - `username`: 3-255 characters, alphanumeric and underscores only, must be unique
+        - `email`: Valid email format, max 255 characters, must be unique
+        
+        **Auto-Generated:**
+        - `id`: UUID (gen_random_uuid())
+        - `created_at`: Current timestamp
+      operationId: createAuthor
+      parameters:
+        - name: username
+          in: query
+          required: true
+          description: Username for the author (3-255 chars, alphanumeric + underscores only)
+          schema:
+            type: string
+            minLength: 3
+            maxLength: 255
+            pattern: '^[a-zA-Z0-9_]+$'
+          example: john_doe
+        - name: email
+          in: query
+          required: true
+          description: Email address for the author (valid email format, must be unique)
+          schema:
+            type: string
+            format: email
+            maxLength: 255
+          example: john.doe@example.com
+      responses:
+        '201':
+          description: Author created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthorCreateResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  
+  /update_author:
+    get:
+      tags:
+        - Authors
+      summary: Update Author
+      description: |
+        Update an existing author's information.
+        
+        **Required Fields:**
+        - `id`: Author UUID (must exist in database)
+        
+        **Optional Fields** (at least one required):
+        - `username`: New username (3-255 chars, alphanumeric + underscores, unique)
+        - `email`: New email (valid email format, max 255 chars, unique)
+      operationId: updateAuthor
+      parameters:
+        - $ref: '#/components/parameters/AuthorId'
+        - name: username
+          in: query
+          required: false
+          description: New username (optional, 3-255 chars)
+          schema:
+            type: string
+            minLength: 3
+            maxLength: 255
+            pattern: '^[a-zA-Z0-9_]+$'
+        - name: email
+          in: query
+          required: false
+          description: New email address (optional)
+          schema:
+            type: string
+            format: email
+            maxLength: 255
+      responses:
+        '200':
+          description: Author updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthorResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  
+  /delete_author:
+    get:
+      tags:
+        - Authors
+      summary: Delete Author
+      description: |
+        Permanently remove an author from the blog system.
+        
+        **⚠️ Warning:** This operation uses CASCADE delete:
+        - Deleting an author will automatically delete ALL their articles
+        - Deleting articles will automatically delete ALL comments on those articles
+        - This operation is IRREVERSIBLE
+      operationId: deleteAuthor
+      parameters:
+        - $ref: '#/components/parameters/AuthorId'
+        - name: confirm
+          in: query
+          required: true
+          description: Confirmation flag (must be true to proceed)
+          schema:
+            type: boolean
+            enum: [true]
+          example: true
+      responses:
+        '200':
+          description: Author deleted successfully with cascade information
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeleteResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  
+  /author_details:
+    get:
+      tags:
+        - Authors
+      summary: Get Author Details
+      description: |
+        Retrieve detailed information about a specific author by their unique ID.
+        
+        **Response Includes:**
+        - Basic author information (id, username, email, created_at)
+        - Article statistics (total, published, drafts, avg length)
+        - Comment statistics (total comments)
+        - Activity information (latest publication)
+        - Optional: Recent articles list
+      operationId: getAuthorDetails
+      parameters:
+        - $ref: '#/components/parameters/AuthorId'
+        - name: include_articles
+          in: query
+          required: false
+          description: Include recent articles in response
+          schema:
+            type: boolean
+            default: false
+        - name: articles_limit
+          in: query
+          required: false
+          description: Number of recent articles to include
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 20
+            default: 5
+      responses:
+        '200':
+          description: Author details retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthorDetailsResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  
+  /create_article:
+    get:
+      tags:
+        - Articles
+      summary: Create Article
+      description: |
+        Create a new article in the blog system.
+        
+        **Required Fields:**
+        - `author_id`: UUID of existing author
+        - `title`: Article title (1-255 characters)
+        - `content`: Article body (minimum 10 characters)
+        
+        **Optional Fields:**
+        - `is_published`: Publication status (default: false for draft)
+        - `publish_date`: Publication date/time (ISO 8601 format)
+        - `tags`: Array of tags for categorization
+      operationId: createArticle
+      parameters:
+        - name: author_id
+          in: query
+          required: true
+          description: Author UUID (must be valid UUID of existing author)
+          schema:
+            type: string
+            format: uuid
+        - name: title
+          in: query
+          required: true
+          description: Article title (1-255 characters)
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 255
+        - name: content
+          in: query
+          required: true
+          description: Article content/body (minimum 10 characters)
+          schema:
+            type: string
+            minLength: 10
+        - name: is_published
+          in: query
+          required: false
+          description: Publication status (boolean, default false)
+          schema:
+            type: boolean
+            default: false
+        - name: publish_date
+          in: query
+          required: false
+          description: Publication date (ISO 8601 format, can be future date)
+          schema:
+            type: string
+            format: date-time
+        - name: tags
+          in: query
+          required: false
+          description: Comma-separated tags (each tag max 50 chars)
+          schema:
+            type: string
+      responses:
+        '201':
+          description: Article created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArticleCreateResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          description: Author not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  
+  /update_article:
+    get:
+      tags:
+        - Articles
+      summary: Update Article
+      description: |
+        Update an existing article.
+        
+        **Required Fields:**
+        - `id`: Article UUID (must exist in database)
+        
+        **Optional Fields** (at least one required):
+        - `title`: New title (1-255 characters)
+        - `content`: New content (minimum 10 characters)
+        - `is_published`: Change publication status
+        - `publish_date`: Update publication date/time
+        
+        **Automatic Updates:**
+        - `updated_at`: Automatically set to current timestamp
+      operationId: updateArticle
+      parameters:
+        - name: id
+          in: query
+          required: true
+          description: Article UUID
+          schema:
+            type: string
+            format: uuid
+        - name: title
+          in: query
+          required: false
+          description: New article title
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 255
+        - name: content
+          in: query
+          required: false
+          description: New article content
+          schema:
+            type: string
+            minLength: 10
+        - name: is_published
+          in: query
+          required: false
+          description: New publication status
+          schema:
+            type: boolean
+        - name: publish_date
+          in: query
+          required: false
+          description: New publication date
+          schema:
+            type: string
+            format: date-time
+      responses:
+        '200':
+          description: Article updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArticleResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  
+  /list_articles_by_author:
+    get:
+      tags:
+        - Articles
+      summary: List Articles by Author (Advanced)
+      description: |
+        Retrieve articles by a specific author with advanced filtering options.
+        
+        **Search Capabilities:**
+        - Full-text search using PostgreSQL tsvector
+        - Searches in both title and content fields
+        - Ranks results by relevance
+        
+        **Filter Options:**
+        - Publication status (published/draft)
+        - Date ranges (created, updated)
+        - Comment count ranges
+        - Content length ranges
+        
+        **Response Includes:**
+        - Article preview (first 300 characters)
+        - Comment count and latest comment date
+        - Author information
+        - Search relevance ranking
+      operationId: listArticlesByAuthor
+      parameters:
+        - name: author_id
+          in: query
+          required: true
+          description: Author UUID
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/SearchContent'
+        - name: published
+          in: query
+          required: false
+          description: Filter by publication status
+          schema:
+            type: boolean
+        - $ref: '#/components/parameters/CreatedAfter'
+        - $ref: '#/components/parameters/CreatedBefore'
+        - name: updated_after
+          in: query
+          required: false
+          description: Filter articles updated after this date
+          schema:
+            type: string
+            format: date-time
+        - $ref: '#/components/parameters/MinComments'
+        - name: max_comments
+          in: query
+          required: false
+          description: Maximum number of comments
+          schema:
+            type: integer
+            minimum: 0
+        - name: content_length_min
+          in: query
+          required: false
+          description: Minimum content length in characters
+          schema:
+            type: integer
+            minimum: 0
+        - name: content_length_max
+          in: query
+          required: false
+          description: Maximum content length in characters
+          schema:
+            type: integer
+            minimum: 0
+        - name: sort
+          in: query
+          required: false
+          description: Sort field
+          schema:
+            type: string
+            enum: [created_at, publish_date, updated_at, title, comment_count, content_length]
+            default: publish_date
+        - $ref: '#/components/parameters/SortDir'
+        - $ref: '#/components/parameters/Page'
+        - name: limit
+          in: query
+          required: false
+          description: Items per page
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: Articles retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArticleListResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          description: Author not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  
+  /comment_on_article:
+    get:
+      tags:
+        - Comments
+      summary: Comment on Article
+      description: |
+        Add a comment to a specific article.
+        
+        **Required Fields:**
+        - `article_id`: UUID of the target article
+        - `author_name`: Name of the commenter (1-255 characters)
+        - `content`: Comment text (1-2000 characters)
+        
+        **Optional Fields:**
+        - `author_email`: Email address for notifications
+        - `notify_on_reply`: Enable email notifications
+        - `allow_on_unpublished`: Allow commenting on drafts (admin only)
+        
+        **Validation:**
+        - Article must exist and be published (unless allow_on_unpublished=true)
+        - Input sanitization to prevent XSS
+      operationId: commentOnArticle
+      parameters:
+        - name: article_id
+          in: query
+          required: true
+          description: Article UUID
+          schema:
+            type: string
+            format: uuid
+        - name: author_name
+          in: query
+          required: true
+          description: Commenter name (1-255 characters)
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 255
+        - name: author_email
+          in: query
+          required: false
+          description: Commenter email (optional)
+          schema:
+            type: string
+            format: email
+            maxLength: 255
+        - name: content
+          in: query
+          required: true
+          description: Comment text (1-2000 characters)
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 2000
+        - name: notify_on_reply
+          in: query
+          required: false
+          description: Enable reply notifications
+          schema:
+            type: boolean
+            default: false
+        - name: allow_on_unpublished
+          in: query
+          required: false
+          description: Allow commenting on unpublished articles
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '201':
+          description: Comment created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommentCreateResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          description: Cannot comment on unpublished article
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Article not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  
+  /update_comment:
+    get:
+      tags:
+        - Comments
+      summary: Update Comment
+      description: |
+        Update an existing comment's content.
+        
+        **Required Fields:**
+        - `id`: Comment UUID
+        
+        **Optional Fields** (at least one required):
+        - `content`: New comment text (1-2000 characters)
+        - `edit_reason`: Explanation for the edit (max 255 characters)
+        
+        **Edit History:**
+        - Previous state captured
+        - Edit timestamp recorded
+        - Changed fields tracked
+      operationId: updateComment
+      parameters:
+        - name: id
+          in: query
+          required: true
+          description: Comment UUID
+          schema:
+            type: string
+            format: uuid
+        - name: content
+          in: query
+          required: false
+          description: New comment text
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 2000
+        - name: edit_reason
+          in: query
+          required: false
+          description: Reason for edit (displayed as edit history)
+          schema:
+            type: string
+            maxLength: 255
+      responses:
+        '200':
+          description: Comment updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommentUpdateResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  
+  /list_comments_by_article:
+    get:
+      tags:
+        - Comments
+      summary: List Comments by Article
+      description: |
+        Retrieve all comments for a specific article with advanced filtering.
+        
+        **Search & Filter Options:**
+        - Full-text search in comment content
+        - Filter by commenter email
+        - Filter by email presence
+        - Date range filtering
+        - Content length filtering
+        
+        **Statistics Included:**
+        - Total comments count
+        - Average comment length
+        - Comments with email count
+        - Percentage with email
+      operationId: listCommentsByArticle
+      parameters:
+        - name: article_id
+          in: query
+          required: true
+          description: Article UUID
+          schema:
+            type: string
+            format: uuid
+        - name: search_comment
+          in: query
+          required: false
+          description: Full-text search within comment content
+          schema:
+            type: string
+        - name: author_email
+          in: query
+          required: false
+          description: Filter by commenter email (exact match)
+          schema:
+            type: string
+            format: email
+        - $ref: '#/components/parameters/CreatedAfter'
+        - $ref: '#/components/parameters/CreatedBefore'
+        - name: has_email
+          in: query
+          required: false
+          description: Filter by email presence (true=with email, false=without email)
+          schema:
+            type: boolean
+        - name: min_length
+          in: query
+          required: false
+          description: Minimum comment length in characters
+          schema:
+            type: integer
+            minimum: 0
+        - name: max_length
+          in: query
+          required: false
+          description: Maximum comment length in characters
+          schema:
+            type: integer
+            minimum: 0
+        - name: sort
+          in: query
+          required: false
+          description: Sort field
+          schema:
+            type: string
+            enum: [comment_date, created_at, author_name, content_length]
+            default: comment_date
+        - $ref: '#/components/parameters/SortDir'
+        - $ref: '#/components/parameters/Page'
+        - name: limit
+          in: query
+          required: false
+          description: Items per page
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+      responses:
+        '200':
+          description: Comments retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommentListResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          description: Article not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  
+  /stats_overview:
+    get:
+      tags:
+        - Statistics
+      summary: Stats Overview
+      description: |
+        Generate comprehensive statistics overview for the entire blog system.
+        
+        **Statistics Categories:**
+        1. **Author Statistics**: Total, active, newest/oldest
+        2. **Article Statistics**: Total, published/drafts, averages
+        3. **Comment Statistics**: Total, unique commenters, averages
+        4. **Engagement Metrics**: Most commented article, most active author
+        
+        **Optional Filters:**
+        - Content search (affects article stats)
+        - Comment search (affects comment stats)
+        - Timeframe (day, week, month, quarter, year, all)
+        - Specific author
+        
+        **Calculated Metrics:**
+        - Publication rate, draft ratio
+        - Email percentage, comments per article
+        - Author engagement rate
+      operationId: getStatsOverview
+      parameters:
+        - $ref: '#/components/parameters/SearchContent'
+        - name: search_comment
+          in: query
+          required: false
+          description: Filter statistics by comment search
+          schema:
+            type: string
+        - name: timeframe
+          in: query
+          required: false
+          description: Time period filter
+          schema:
+            type: string
+            enum: [day, week, month, quarter, year, all]
+            default: all
+        - name: author_id
+          in: query
+          required: false
+          description: Filter statistics for specific author
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Statistics generated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatsResponse'
+              examples:
+                complete:
+                  summary: Complete statistics overview
+                  value:
+                    success: true
+                    data:
+                      authors:
+                        total_authors: 116
+                        active_authors: 54
+                        newest_author: '2026-01-08T10:41:36'
+                        oldest_author: '2025-02-24T10:21:15'
+                      articles:
+                        total_articles: 487
+                        published_articles: 362
+                        draft_articles: 125
+                        avg_article_length: 4123
+                      comments:
+                        total_comments: 3542
+                        unique_commenters: 892
+                        avg_comment_length: 127
+                      engagement:
+                        avg_comments_per_article: 7.3
+                        most_commented_article:
+                          title: Functional Java Programming
+                          comment_count: 45
+                        most_active_author:
+                          username: mendozacurtis
+                          article_count: 23
+                          total_comments: 231
+                    calculated_metrics:
+                      articles:
+                        publication_rate: 74.3
+                        draft_ratio: 25.7
+                      comments:
+                        email_percentage: 75.6
+                        comments_per_article: 7.3
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+components:
+  parameters:
+    AuthorId:
+      name: id
+      in: query
+      required: true
+      description: Author UUID
+      schema:
+        type: string
+        format: uuid
+      example: 7a180515-2105-4e8e-9c20-0e08a694ffeb
+    
+    SearchAuthor:
+      name: search_author
+      in: query
+      required: false
+      description: Case-insensitive wildcard search in username and email fields
+      schema:
+        type: string
+      example: john
+    
+    SearchContent:
+      name: search_content
+      in: query
+      required: false
+      description: Full-text search in article titles and content using PostgreSQL tsvector
+      schema:
+        type: string
+      example: Java
+    
+    CreatedAfter:
+      name: created_after
+      in: query
+      required: false
+      description: Filter items created after this date (ISO 8601 format)
+      schema:
+        type: string
+        format: date-time
+      example: '2025-01-01T00:00:00'
+    
+    CreatedBefore:
+      name: created_before
+      in: query
+      required: false
+      description: Filter items created before this date (ISO 8601 format)
+      schema:
+        type: string
+        format: date-time
+      example: '2025-12-31T23:59:59'
+    
+    MinComments:
+      name: min_comments
+      in: query
+      required: false
+      description: Filter by minimum number of comments
+      schema:
+        type: integer
+        minimum: 0
+      example: 5
+    
+    MinArticles:
+      name: min_articles
+      in: query
+      required: false
+      description: Filter authors with at least this many articles
+      schema:
+        type: integer
+        minimum: 0
+      example: 10
+    
+    HasPublished:
+      name: has_published
+      in: query
+      required: false
+      description: Filter by authors who have published articles
+      schema:
+        type: boolean
+      example: true
+    
+    Page:
+      name: page
+      in: query
+      required: false
+      description: Page number for pagination
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+      example: 1
+    
+    Limit:
+      name: limit
+      in: query
+      required: false
+      description: Number of items per page
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 50
+      example: 50
+    
+    Sort:
+      name: sort
+      in: query
+      required: false
+      description: Sort field
+      schema:
+        type: string
+        enum: [username, email, created_at, article_count]
+        default: created_at
+    
+    SortDir:
+      name: sort_dir
+      in: query
+      required: false
+      description: Sort direction
+      schema:
+        type: string
+        enum: [asc, desc]
+        default: desc
+
+  schemas:
+    Author:
+      type: object
+      description: Blog author entity
+      required:
+        - id
+        - username
+        - email
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique author identifier
+          example: 7a180515-2105-4e8e-9c20-0e08a694ffeb
+        username:
+          type: string
+          minLength: 3
+          maxLength: 255
+          pattern: '^[a-zA-Z0-9_]+$'
+          description: Unique username (alphanumeric and underscores)
+          example: amber86
+        email:
+          type: string
+          format: email
+          maxLength: 255
+          description: Unique email address
+          example: michael89@example.net
+        created_at:
+          type: string
+          format: date-time
+          description: Author creation timestamp
+          example: '2025-11-28T04:15:38'
+    
+    AuthorWithStats:
+      allOf:
+        - $ref: '#/components/schemas/Author'
+        - type: object
+          properties:
+            article_count:
+              type: integer
+              format: int64
+              description: Total number of articles by this author
+              example: 14
+            published_count:
+              type: integer
+              format: int64
+              description: Number of published articles
+              example: 11
+            comment_count:
+              type: integer
+              format: int64
+              description: Total comments on all articles by this author
+              example: 103
+            latest_publication:
+              type: string
+              format: date-time
+              nullable: true
+              description: Date of most recent published article
+              example: '2025-11-07T18:21:47'
+    
+    Article:
+      type: object
+      description: Blog article entity
+      required:
+        - id
+        - title
+        - content
+        - author_id
+        - is_published
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique article identifier
+          example: f1e2d3c4-b5a6-7890-1234-567890abcdef
+        title:
+          type: string
+          minLength: 1
+          maxLength: 255
+          description: Article title
+          example: Functional Java Programming
+        content:
+          type: string
+          minLength: 10
+          description: Article content/body
+          example: Introduction to functional programming in Java 21 and beyond...
+        author_id:
+          type: string
+          format: uuid
+          description: Author UUID (foreign key)
+          example: 7a180515-2105-4e8e-9c20-0e08a694ffeb
+        is_published:
+          type: boolean
+          description: Publication status
+          example: true
+        publish_date:
+          type: string
+          format: date-time
+          nullable: true
+          description: Publication date/time
+          example: '2025-11-07T18:21:47'
+        created_at:
+          type: string
+          format: date-time
+          description: Article creation timestamp
+          example: '2025-11-01T10:30:00'
+        updated_at:
+          type: string
+          format: date-time
+          description: Last update timestamp
+          example: '2025-11-07T09:15:00'
+    
+    ArticleWithDetails:
+      allOf:
+        - $ref: '#/components/schemas/Article'
+        - type: object
+          properties:
+            content_preview:
+              type: string
+              description: First 300 characters of content
+              example: Introduction to functional programming in Java 21 and beyond. Learn about sealed classes, pattern matching, records...
+            content_length:
+              type: integer
+              description: Full content length in characters
+              example: 4521
+            author_username:
+              type: string
+              description: Author username
+              example: amber86
+            author_email:
+              type: string
+              format: email
+              description: Author email
+              example: michael89@example.net
+            comment_count:
+              type: integer
+              format: int64
+              description: Number of comments on this article
+              example: 12
+            latest_comment:
+              type: string
+              format: date-time
+              nullable: true
+              description: Date of most recent comment
+              example: '2025-11-15T14:22:00'
+    
+    Comment:
+      type: object
+      description: Article comment entity
+      required:
+        - id
+        - article_id
+        - author_name
+        - content
+        - comment_date
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique comment identifier
+          example: c1d2e3f4-a5b6-7890-1234-567890fedcba
+        article_id:
+          type: string
+          format: uuid
+          description: Article UUID (foreign key)
+          example: f1e2d3c4-b5a6-7890-1234-567890abcdef
+        author_name:
+          type: string
+          minLength: 1
+          maxLength: 255
+          description: Commenter name
+          example: Jane Reader
+        author_email:
+          type: string
+          format: email
+          maxLength: 255
+          nullable: true
+          description: Commenter email (optional)
+          example: jane@example.com
+        content:
+          type: string
+          minLength: 1
+          maxLength: 2000
+          description: Comment text
+          example: Great article! Very informative.
+        comment_date:
+          type: string
+          format: date-time
+          description: Comment timestamp
+          example: '2026-01-12T11:30:45.123456'
+        created_at:
+          type: string
+          format: date-time
+          description: Record creation timestamp
+          example: '2026-01-12T11:30:45.123456'
+    
+    PaginationMetadata:
+      type: object
+      description: Pagination information
+      required:
+        - total_found
+        - page_size
+      properties:
+        total_found:
+          type: integer
+          format: int64
+          description: Total number of items matching the query
+          example: 116
+        page_size:
+          type: integer
+          description: Number of items in current page
+          example: 10
+        page:
+          type: integer
+          description: Current page number
+          example: 1
+        limit:
+          type: integer
+          description: Items per page
+          example: 50
+        total_pages:
+          type: integer
+          description: Total number of pages
+          example: 3
+        has_next:
+          type: boolean
+          description: Whether there is a next page
+          example: true
+        has_previous:
+          type: boolean
+          description: Whether there is a previous page
+          example: false
+    
+    SuccessResponse:
+      type: object
+      description: Standard success response envelope
+      required:
+        - success
+        - count
+        - data
+      properties:
+        success:
+          type: boolean
+          description: Operation success flag
+          example: true
+        count:
+          $ref: '#/components/schemas/PaginationMetadata'
+        data:
+          type: array
+          description: Response data (array for list endpoints, single object for detail endpoints)
+          items:
+            type: object
+    
+    ErrorResponse:
+      type: object
+      description: Error response structure
+      required:
+        - success
+        - error
+      properties:
+        success:
+          type: boolean
+          description: Operation success flag (always false for errors)
+          example: false
+        error:
+          type: object
+          required:
+            - code
+            - message
+          properties:
+            code:
+              type: integer
+              description: HTTP status code
+              example: 400
+            message:
+              type: string
+              description: Error message
+              example: Validation error
+            details:
+              type: string
+              description: Detailed error information
+              example: Username must be at least 3 characters long
+    
+    AuthorListResponse:
+      allOf:
+        - $ref: '#/components/schemas/SuccessResponse'
+        - type: object
+          properties:
+            data:
+              type: array
+              items:
+                $ref: '#/components/schemas/AuthorWithStats'
+    
+    AuthorResponse:
+      allOf:
+        - $ref: '#/components/schemas/SuccessResponse'
+        - type: object
+          properties:
+            data:
+              type: array
+              minItems: 1
+              maxItems: 1
+              items:
+                $ref: '#/components/schemas/Author'
+    
+    AuthorCreateResponse:
+      allOf:
+        - $ref: '#/components/schemas/AuthorResponse'
+    
+    AuthorDetailsResponse:
+      type: object
+      required:
+        - success
+        - data
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: object
+          allOf:
+            - $ref: '#/components/schemas/Author'
+            - type: object
+              properties:
+                statistics:
+                  type: object
+                  properties:
+                    total_articles:
+                      type: integer
+                      example: 14
+                    published_articles:
+                      type: integer
+                      example: 11
+                    draft_articles:
+                      type: integer
+                      example: 3
+                    total_comments:
+                      type: integer
+                      example: 103
+                    latest_publication:
+                      type: string
+                      format: date-time
+                      example: '2025-11-07T18:21:47'
+                    avg_article_length:
+                      type: integer
+                      example: 4521
+    
+    DeleteResponse:
+      type: object
+      required:
+        - success
+        - data
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: array
+          items:
+            type: object
+        metadata:
+          type: object
+          properties:
+            cascade_deleted:
+              type: object
+              properties:
+                articles:
+                  type: integer
+                  example: 14
+                comments:
+                  type: integer
+                  example: 103
+            warning:
+              type: string
+              example: Related articles and comments were also removed due to CASCADE delete constraints
+    
+    ArticleListResponse:
+      allOf:
+        - $ref: '#/components/schemas/SuccessResponse'
+        - type: object
+          properties:
+            data:
+              type: array
+              items:
+                $ref: '#/components/schemas/ArticleWithDetails'
+            metadata:
+              type: object
+              properties:
+                author_id:
+                  type: string
+                  format: uuid
+                search_performed:
+                  type: boolean
+                statistics:
+                  type: object
+                  properties:
+                    avg_content_length:
+                      type: number
+                    avg_comment_count:
+                      type: number
+            pagination:
+              type: object
+              properties:
+                page:
+                  type: integer
+                limit:
+                  type: integer
+                total_pages:
+                  type: integer
+                has_next:
+                  type: boolean
+                has_previous:
+                  type: boolean
+    
+    ArticleResponse:
+      allOf:
+        - $ref: '#/components/schemas/SuccessResponse'
+        - type: object
+          properties:
+            data:
+              type: array
+              minItems: 1
+              maxItems: 1
+              items:
+                $ref: '#/components/schemas/Article'
+    
+    ArticleCreateResponse:
+      allOf:
+        - $ref: '#/components/schemas/ArticleResponse'
+        - type: object
+          properties:
+            metadata:
+              type: object
+              properties:
+                is_published:
+                  type: boolean
+                has_publish_date:
+                  type: boolean
+    
+    CommentListResponse:
+      allOf:
+        - $ref: '#/components/schemas/SuccessResponse'
+        - type: object
+          properties:
+            data:
+              type: array
+              items:
+                allOf:
+                  - $ref: '#/components/schemas/Comment'
+                  - type: object
+                    properties:
+                      content_length:
+                        type: integer
+                      article_title:
+                        type: string
+                      article_author:
+                        type: string
+                      has_contact:
+                        type: boolean
+            metadata:
+              type: object
+              properties:
+                article_id:
+                  type: string
+                  format: uuid
+                article_title:
+                  type: string
+                article_author:
+                  type: string
+                statistics:
+                  type: object
+                  properties:
+                    total_comments:
+                      type: integer
+                    avg_comment_length:
+                      type: number
+                    comments_with_email:
+                      type: integer
+                    percentage_with_email:
+                      type: number
+    
+    CommentCreateResponse:
+      type: object
+      required:
+        - success
+        - data
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: object
+          properties:
+            comment:
+              $ref: '#/components/schemas/Comment'
+            article:
+              type: object
+              properties:
+                title:
+                  type: string
+                author_username:
+                  type: string
+        metadata:
+          type: object
+          properties:
+            article_title:
+              type: string
+            article_author:
+              type: string
+            notification_enabled:
+              type: boolean
+    
+    CommentUpdateResponse:
+      type: object
+      required:
+        - success
+        - data
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: object
+          properties:
+            updated_comment:
+              type: object
+              properties:
+                id:
+                  type: string
+                  format: uuid
+                content:
+                  type: string
+            previous_state:
+              type: object
+              properties:
+                content:
+                  type: string
+                article_title:
+                  type: string
+        metadata:
+          type: object
+          properties:
+            article_title:
+              type: string
+            edit_reason:
+              type: string
+              nullable: true
+            fields_changed:
+              type: object
+              properties:
+                author_name:
+                  type: boolean
+                author_email:
+                  type: boolean
+                content:
+                  type: boolean
+    
+    StatsResponse:
+      type: object
+      required:
+        - success
+        - data
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: object
+          properties:
+            authors:
+              type: object
+              properties:
+                total_authors:
+                  type: integer
+                active_authors:
+                  type: integer
+                newest_author:
+                  type: string
+                  format: date-time
+                oldest_author:
+                  type: string
+                  format: date-time
+            articles:
+              type: object
+              properties:
+                total_articles:
+                  type: integer
+                published_articles:
+                  type: integer
+                draft_articles:
+                  type: integer
+                avg_article_length:
+                  type: number
+                latest_publication:
+                  type: string
+                  format: date-time
+                earliest_publication:
+                  type: string
+                  format: date-time
+                authors_with_articles:
+                  type: integer
+            comments:
+              type: object
+              properties:
+                total_comments:
+                  type: integer
+                unique_commenters:
+                  type: integer
+                avg_comment_length:
+                  type: number
+                latest_comment:
+                  type: string
+                  format: date-time
+                earliest_comment:
+                  type: string
+                  format: date-time
+                articles_with_comments:
+                  type: integer
+                comments_with_email:
+                  type: integer
+            engagement:
+              type: object
+              properties:
+                avg_comments_per_article:
+                  type: number
+                most_commented_article:
+                  type: object
+                  properties:
+                    id:
+                      type: string
+                      format: uuid
+                    title:
+                      type: string
+                    comment_count:
+                      type: integer
+                most_active_author:
+                  type: object
+                  properties:
+                    id:
+                      type: string
+                      format: uuid
+                    username:
+                      type: string
+                    article_count:
+                      type: integer
+                    total_comments:
+                      type: integer
+        metadata:
+          type: object
+          properties:
+            report_name:
+              type: string
+            generated_at:
+              type: string
+              format: date-time
+            timeframe:
+              type: string
+            filters_applied:
+              type: object
+        calculated_metrics:
+          type: object
+          properties:
+            articles:
+              type: object
+              properties:
+                publication_rate:
+                  type: number
+                draft_ratio:
+                  type: number
+            comments:
+              type: object
+              properties:
+                email_percentage:
+                  type: number
+                comments_per_article:
+                  type: number
+            engagement:
+              type: object
+              properties:
+                author_engagement:
+                  type: number
+  
+  responses:
+    BadRequest:
+      description: Bad request - Invalid input or validation error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            error:
+              code: 400
+              message: Validation error
+              details: Username must be at least 3 characters long
+    
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            error:
+              code: 404
+              message: Resource not found
+              details: No author exists with the provided ID
+    
+    Conflict:
+      description: Conflict - Duplicate resource
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            error:
+              code: 409
+              message: Username already exists
+              details: An author with this username is already registered in the system
+

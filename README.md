@@ -1,15 +1,21 @@
 # Blog Application with Cheshire Framework
 
-A sample blog application built using the Cheshire framework, demonstrating how to expose database operations through multiple protocols (REST API, MCP stdio, MCP HTTP).
+A comprehensive reference implementation built with the Cheshire framework, demonstrating how to expose database operations through multiple protocols. The application provides **15 operations** across Authors, Articles, Comments, Statistics, and Documentation endpoints, accessible via **REST API**, **MCP stdio** (Claude Desktop), and **MCP HTTP** with streaming.
+
+This application serves as the primary example for learning and implementing the Cheshire framework's capabilities, including three-stage pipelines, DSL query templates, multi-protocol support, and LLM integration.
 
 ## Features
 
-- **Authors Management**: Create, update, delete, and query blog authors
-- **Articles Management**: Full CRUD operations for blog articles with publish status
-- **Comments System**: Create and manage comments on articles
-- **Multiple Exposure Types**: REST API, MCP stdio, and MCP streamable HTTP
-- **H2 In-Memory Database**: Quick startup with pre-populated test data
-- **Functional Java**: Follows immutable, declarative programming patterns
+- **15 Operations**: Complete API with Authors (5), Articles (3), Comments (3), Statistics (1), and Documentation (3) endpoints
+- **Multi-Protocol Support**: REST API, MCP stdio (for Claude Desktop), and MCP HTTP with streaming
+- **Dual Database Support**: PostgreSQL with Docker Compose OR H2 in-memory (pre-populated with test data)
+- **Comprehensive Testing**: 1,800+ lines of testing documentation with curl examples and workflow tests
+- **OpenAPI 3.0**: Complete API specification with schemas, examples, and validation rules
+- **Postman Collection**: Ready-to-use collection with 15+ requests and environment variables
+- **LLM-Ready**: MCP integration for AI agents (Claude Desktop) with tool discovery
+- **Pipeline Architecture**: Three-stage processing (PreProcessor → Executor → PostProcessor)
+- **DSL Query Templates**: Type-safe SQL generation with parameter binding and filtering
+- **Functional Java**: Immutable, declarative programming following Scala-influenced patterns
 
 ## Architecture
 
@@ -26,14 +32,16 @@ Input → PreProcessor → Executor → PostProcessor → Output
 - **BlogExecutor**: SQL query building and execution using JDBC
 - **BlogOutputProcessor**: Response formatting
 
-### Configuration
+### Configuration Files
+
+Located in `src/main/resources/config/`:
 
 - **blog-application.yaml**: Core application configuration with data sources and capabilities
-- **blog-rest.yaml**: REST API exposure configuration
-- **blog-mcp-stdio.yaml**: Standard I/O MCP configuration
-- **blog-mcp-streamable-http.yaml**: HTTP-based MCP configuration
-- **blog-actions.yaml**: MCP tools specification (15 operations)
-- **blog-pipelines.yaml**: Pipeline definitions with DSL queries
+- **blog-rest.yaml**: REST API exposure on port 9000 (`/api/v1/blog`)
+- **blog-mcp-stdio.yaml**: Standard I/O MCP for Claude Desktop integration
+- **blog-mcp-streamable-http.yaml**: HTTP-based MCP with streaming on port 9000 (`/mcp/v1`)
+- **blog-actions.yaml**: MCP tools specification (15 operations with schemas and validation)
+- **blog-pipelines.yaml**: Pipeline definitions with DSL query templates for all operations
 
 ## Database Schema
 
@@ -45,38 +53,99 @@ The application uses an H2 in-memory database with the following tables:
 
 ## Operations
 
-### Authors (5 operations)
-- `create_author(username, email)` - Create a new author
-- `update_author(id, username, email)` - Update author information
-- `delete_author(id)` - Delete an author (cascade deletes articles)
-- `get_author(id)` - Retrieve a single author
-- `list_authors(limit, offset)` - List all authors with pagination
+The Blog Application provides **15 operations** organized into five categories:
 
-### Articles (7 operations)
-- `create_article(title, content, author_id, is_published)` - Create a new article
-- `update_article(id, title, content, is_published)` - Update an article
-- `delete_article(id)` - Delete an article (cascade deletes comments)
-- `get_article(id)` - Retrieve a single article
-- `list_articles(limit, offset)` - List all articles with pagination
-- `list_published_articles(limit, offset)` - List only published articles
-- `search_articles(query, limit)` - Search articles by title or content
+### Authors (5 operations)
+- `create_author(username, email)` - Create a new author with unique username and email
+- `update_author(id, username, email)` - Update author information (at least one field required)
+- `delete_author(id, confirm)` - Delete an author (cascade deletes all articles and comments)
+- `list_authors(page, limit, search_author, created_after, created_before, has_published)` - List authors with filtering and pagination
+- `author_details(id)` - Get author with comprehensive statistics (articles, comments, publications)
+
+### Articles (3 operations)
+- `create_article(author_id, title, content, is_published)` - Create a new article
+- `update_article(id, title, content, is_published)` - Update article (at least one field required)
+- `list_articles_by_author(author_id, published, limit, page, sort_by, order)` - List articles by author with filtering and sorting
 
 ### Comments (3 operations)
-- `create_comment(article_id, author_name, author_email, content)` - Create a comment
-- `delete_comment(id)` - Delete a comment
-- `list_comments_by_article(article_id, limit, offset)` - List comments for an article
+- `comment_on_article(article_id, author_name, author_email, content)` - Add a comment to an article
+- `update_comment(id, content)` - Update comment content
+- `list_comments_by_article(article_id, limit, page, sort_by, order)` - List comments for an article with pagination
+
+### Statistics (1 operation)
+- `stats_overview(timeframe)` - Get comprehensive blog statistics (authors, articles, comments, activity)
+
+### Documentation (3 operations)
+- `get_api_documentation()` - Retrieve API documentation in markdown format
+- `get_openapi_spec()` - Get OpenAPI 3.0.3 specification
+- `get_postman_collection()` - Download Postman Collection v2.1
+
+See [blog-actions.yaml](src/main/resources/config/blog-actions.yaml) for complete operation specifications.
 
 ## Prerequisites
 
-- Java 21 or higher
-- Maven 3.6 or higher
-- Cheshire framework installed locally (1.0-SNAPSHOT)
+- **Java 21 or higher** (with preview features enabled)
+- **Maven 3.8 or higher** (or use included Maven wrapper)
+- **Git** for cloning repositories
 
-## Building
+## Setup & Installation
+
+### Step 1: Clone and Install Cheshire Framework
+
+The Blog Application depends on the Cheshire Framework. Install it locally first:
 
 ```bash
-cd /home/hchaibi/workspace/idea-projects/cheshire-framework/blog-app
-mvn clean install
+# Clone the Cheshire Framework
+git clone https://github.com/halimchaibi/cheshire-prototype.git
+cd cheshire-prototype
+
+# Build and install framework dependencies (skip tests for faster build)
+./mvnw clean install -DskipTests
+
+# Or use system Maven if installed
+mvn clean install -DskipTests
+```
+
+This installs all Cheshire framework modules (cheshire-core, cheshire-runtime, cheshire-server, etc.) to your local Maven repository.
+
+### Step 2: Clone the Blog Application
+
+```bash
+# Navigate back to parent directory
+cd ..
+
+# Clone the Blog Application
+git clone https://github.com/halimchaibi/cheshire-blog-app.git
+cd cheshire-blog-app
+```
+
+### Step 3: Build the Blog Application
+
+```bash
+# Build using Maven wrapper (recommended)
+./mvnw clean package
+
+# Or use system Maven
+mvn clean package
+
+# The JAR will be created at: target/blog-app-1.0-SNAPSHOT.jar
+```
+
+### Quick Start (All-in-One)
+
+```bash
+# Clone and setup everything
+git clone https://github.com/halimchaibi/cheshire-prototype.git
+cd cheshire-prototype
+./mvnw clean install -DskipTests
+cd ..
+
+git clone https://github.com/halimchaibi/cheshire-blog-app.git
+cd cheshire-blog-app
+./mvnw clean package
+
+# Run the application
+java -jar target/blog-app-1.0-SNAPSHOT.jar --config blog-rest.yaml
 ```
 
 ## Running the Application
@@ -271,7 +340,7 @@ If you're running WSL2 (Ubuntu) and Claude Desktop on Windows, use the provided 
 ```bash
 #!/bin/bash
 /usr/lib/jvm/java-21-openjdk-amd64/bin/java --enable-preview \
-  -jar /home/hchaibi/workspace/idea-projects/cheshire-framework/cheshire-blog-app/target/blog-app-1.0-SNAPSHOT.jar \
+  -jar /path/to/cheshire-blog-app/target/blog-app-1.0-SNAPSHOT.jar \
   --config blog-mcp-stdio.yaml \
   --log-file /tmp/blog-mcp-stdio.log \
   --redirect-stderr
@@ -286,7 +355,7 @@ If you're running WSL2 (Ubuntu) and Claude Desktop on Windows, use the provided 
       "command": "wsl",
       "args": [
         "bash",
-        "/home/hchaibi/workspace/idea-projects/cheshire-framework/cheshire-blog-app/dev-utils/blog-app-claude.sh"
+        "/path/to/cheshire-blog-app/dev-utils/blog-app-claude.sh"
       ]
     }
   }
@@ -302,7 +371,7 @@ If you're running WSL2 (Ubuntu) and Claude Desktop on Windows, use the provided 
       "command": "wsl",
       "args": [
         "bash",
-        "\\\\wsl.localhost\\Ubuntu-22.04\\home\\hchaibi\\workspace\\idea-projects\\cheshire-framework\\cheshire-blog-app\\dev-utils\\blog-app-claude.sh"
+        "\\\\wsl.localhost\\Ubuntu-22.04\\path\\to\\cheshire-blog-app\\dev-utils\\blog-app-claude.sh"
       ]
     }
   }
@@ -311,7 +380,7 @@ If you're running WSL2 (Ubuntu) and Claude Desktop on Windows, use the provided 
 
 **Make script executable**:
 ```bash
-chmod +x /home/hchaibi/workspace/idea-projects/cheshire-framework/cheshire-blog-app/dev-utils/blog-app-claude.sh
+chmod +x /path/to/cheshire-blog-app/dev-utils/blog-app-claude.sh
 ```
 
 **Verify logs**:
@@ -695,7 +764,7 @@ java -jar target/blog-app-1.0-SNAPSHOT.jar \
   --redirect-stderr
 
 # Or use the WSL2 script for Windows + Claude Desktop
-wsl bash /home/hchaibi/workspace/idea-projects/cheshire-framework/cheshire-blog-app/dev-utils/blog-app-claude.sh
+wsl bash /path/to/cheshire-blog-app/dev-utils/blog-app-claude.sh
 
 # Add to Claude Desktop config (see WSL2 section above)
 # Then ask Claude: "Using the blog API, create a new author named Alice with email alice@example.com"
@@ -716,21 +785,20 @@ curl -X POST http://localhost:8080/mcp/tools/call \
 ## Project Structure
 
 ```
-blog-app/
+cheshire-blog-app/
 ├── pom.xml
-├── README.md
-├── TESTING.md (comprehensive testing guide)
+├── README.md (this file)
+├── TESTING.md (comprehensive testing guide - 1,800+ lines)
 ├── API_DOCUMENTATION.md (API usage guide)
 ├── openapi-blog-api.yaml (OpenAPI 3.0 specification)
 ├── postman-api-complete.json (Postman collection)
-├── db.sql (original MySQL schema)
 ├── dev-utils/
 │   ├── blog-app-claude.sh (WSL2 Claude Desktop launcher)
 │   └── blog-inspector.sh (MCP Inspector launcher)
 ├── infra/
 │   ├── docker-compose.yml (PostgreSQL Docker setup)
-│   ├── schema.sql (H2-compatible schema with test data)
-│   └── postgres/ (test data generation scripts)
+│   ├── schema.sql (Database schema)
+│   └── postgres/ (test data generation scripts with Python)
 ├── src/
 │   └── main/
 │       ├── java/
@@ -856,7 +924,7 @@ java -version  # Verify installation
 
 Make the script executable:
 ```bash
-chmod +x /home/hchaibi/workspace/idea-projects/cheshire-framework/cheshire-blog-app/dev-utils/blog-app-claude.sh
+chmod +x /path/to/cheshire-blog-app/dev-utils/blog-app-claude.sh
 ```
 
 ## Documentation
@@ -890,8 +958,19 @@ The Blog Application includes comprehensive documentation:
 
 ## Reference Implementation
 
-This application is based on the Chinook reference implementation located at:
-`/home/hchaibi/workspace/idea-projects/cheshire-framework/cheshire-reference-impl`
+This Blog Application serves as the **primary reference implementation** for the Cheshire Framework, demonstrating:
+
+- ✅ **Multi-Protocol Support** - REST API, MCP stdio, and MCP HTTP implementations
+- ✅ **Complete CRUD Operations** - 15 operations across 5 categories
+- ✅ **Pipeline Configuration** - Comprehensive examples of three-stage pipelines (PreProcessor → Executor → PostProcessor)
+- ✅ **DSL Query Templates** - Advanced SQL generation with parameter binding and filtering
+- ✅ **Database Integration** - PostgreSQL and H2 in-memory support
+- ✅ **Testing & Documentation** - 1,800+ lines of testing guide, OpenAPI spec, and Postman collections
+- ✅ **LLM Integration** - Claude Desktop and MCP Inspector integration
+- ✅ **Production Patterns** - Validation, error handling, pagination, and resource management
+
+**Framework Repository**: [cheshire-prototype](https://github.com/halimchaibi/cheshire-prototype)  
+**Application Repository**: [cheshire-blog-app](https://github.com/halimchaibi/cheshire-blog-app)
 
 ## License
 
