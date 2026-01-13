@@ -1,0 +1,19 @@
+# Java build artifacts
+**/target/
+dependency-reduced-pom.xml
+
+# IntelliJ / IDE files
+*.iml
+.idea/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Ignore generated files in infra/postgres except scripts you want
+infra/postgres/__pycache__/
+infra/postgres/*.pyc
+infra/postgres/blog_data
+# keep .py scripts tracked
+
+/infra/blog_data/

@@ -1,0 +1,1085 @@
+{
+  "info": {
+    "_postman_id": "5b3cc2b7-c99e-4bfd-8d8e-a2be9e474318",
+    "name": "Blog API - Complete Specification",
+    "description": "Comprehensive REST API for a blog system built with the Cheshire Framework. This API provides complete CRUD operations for Authors, Articles, and Comments with advanced filtering, full-text search, pagination, and comprehensive statistics.\n\n## Features\n- **Author Management**: Create, update, delete, and query authors with article/comment statistics\n- **Article Management**: Full CRUD with publishing workflow, advanced search, and content filtering\n- **Comment System**: Create and manage comments with rich filtering capabilities\n- **Statistics & Reporting**: Comprehensive system-wide statistics and analytics\n- **Advanced Filtering**: Full-text search using PostgreSQL tsvector, date ranges, content length filters\n- **Pagination**: Consistent pagination across all list endpoints\n- **Cascade Operations**: Automatic cascade delete (author → articles → comments)\n\n## Base URL\n`http://localhost:8080/api/v1/blog`\n\n## Data Validation\nAll endpoints include comprehensive validation:\n- UUID format validation for IDs\n- Email format validation\n- String length constraints\n- Pattern matching (e.g., username alphanumeric)\n- Required vs optional field enforcement",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "version": "1.0.0"
+  },
+  "item": [
+    {
+      "name": "Authors",
+      "description": "Operations for managing blog authors. Authors are users who can write articles. Each author must have a unique username and email address.",
+      "item": [
+        {
+          "name": "List Authors",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{url}}/api/v1/blog/list_authors?page=1&limit=50&search_author=john&created_after=2025-01-01&has_published=true&sort=created_at&sort_dir=desc",
+              "host": ["{{url}}"],
+              "path": ["api", "v1", "blog", "list_authors"],
+              "query": [
+                {
+                  "key": "search_author",
+                  "value": "john",
+                  "description": "Case-insensitive wildcard search in username and email fields. Supports partial matching.",
+                  "disabled": true
+                },
+                {
+                  "key": "created_after",
+                  "value": "2025-01-01",
+                  "description": "Filter authors created after this date (ISO 8601 format: YYYY-MM-DD or YYYY-MM-DDTHH:mm:ss)",
+                  "disabled": true
+                },
+                {
+                  "key": "created_before",
+                  "value": "2025-12-31",
+                  "description": "Filter authors created before this date (ISO 8601 format)",
+                  "disabled": true
+                },
+                {
+                  "key": "search_content",
+                  "value": "Java",
+                  "description": "Full-text search in author's article titles and content using PostgreSQL tsvector",
+                  "disabled": true
+                },
+                {
+                  "key": "min_comments",
+                  "value": "5",
+                  "description": "Filter authors with at least this many comments on their articles (integer, min: 0)",
+                  "disabled": true
+                },
+                {
+                  "key": "min_articles",
+                  "value": "10",
+                  "description": "Filter authors with at least this many articles (integer, min: 0)",
+                  "disabled": true
+                },
+                {
+                  "key": "has_published",
+                  "value": "true",
+                  "description": "Filter by authors who have published articles (boolean: true/false)",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Page number for pagination (integer, min: 1, default: 1)",
+                  "disabled": true
+                },
+                {
+                  "key": "limit",
+                  "value": "50",
+                  "description": "Number of items per page (integer, min: 1, max: 100, default: 50)",
+                  "disabled": true
+                },
+                {
+                  "key": "sort",
+                  "value": "created_at",
+                  "description": "Sort field (options: username, email, created_at, article_count, default: created_at)",
+                  "disabled": true
+                },
+                {
+                  "key": "sort_dir",
+                  "value": "desc",
+                  "description": "Sort direction (options: asc, desc, default: desc)",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Retrieve a paginated collection of authors from the blog system. Supports powerful filtering including:\n\n**Search Capabilities:**\n- Wildcard search across username and email\n- Full-text search in author's article titles/content\n- Date range filtering for author creation\n\n**Statistics Included:**\n- Total article count per author\n- Published article count\n- Comment count on author's articles\n- Latest publication date\n\n**Pagination:**\n- Default: 50 authors per page\n- Configurable from 1-100 per page\n- Includes total count and page navigation metadata\n\n**Sorting:**\n- Sort by username, email, creation date, or article count\n- Ascending or descending order\n\n**Use Cases:**\n- Browse all authors with statistics\n- Find prolific authors (by article/comment count)\n- Search for specific authors by name/email\n- Find authors who have written about specific topics"
+          },
+          "response": [
+            {
+              "name": "Success - List Authors with Pagination",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{url}}/api/v1/blog/list_authors?page=1&limit=10",
+                  "host": ["{{url}}"],
+                  "path": ["api", "v1", "blog", "list_authors"],
+                  "query": [
+                    {"key": "page", "value": "1"},
+                    {"key": "limit", "value": "10"}
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {"key": "Content-Type", "value": "application/json"}
+              ],
+              "body": "{\n  \"success\": true,\n  \"count\": {\n    \"total_found\": 116,\n    \"page_size\": 10\n  },\n  \"data\": [\n    {\n      \"id\": \"7a180515-2105-4e8e-9c20-0e08a694ffeb\",\n      \"username\": \"amber86\",\n      \"email\": \"michael89@example.net\",\n      \"created_at\": \"2025-11-28T04:15:38\",\n      \"article_count\": 14,\n      \"published_count\": 11,\n      \"comment_count\": 103,\n      \"latest_publication\": \"2025-11-07T18:21:47\"\n    },\n    {\n      \"id\": \"eed24ed9-929c-4933-be35-8815347025aa\",\n      \"username\": \"mendozacurtis\",\n      \"email\": \"wjones@example.net\",\n      \"created_at\": \"2025-04-15T05:57:32\",\n      \"article_count\": 23,\n      \"published_count\": 15,\n      \"comment_count\": 231,\n      \"latest_publication\": \"2026-01-07T18:21:47\"\n    }\n  ],\n  \"columns\": [\n    {\"name\": \"id\", \"type\": \"UUID\", \"nullable\": false},\n    {\"name\": \"username\", \"type\": \"String\", \"nullable\": false},\n    {\"name\": \"email\", \"type\": \"String\", \"nullable\": false},\n    {\"name\": \"created_at\", \"type\": \"LocalDateTime\", \"nullable\": false},\n    {\"name\": \"article_count\", \"type\": \"Long\", \"nullable\": false},\n    {\"name\": \"published_count\", \"type\": \"Long\", \"nullable\": false},\n    {\"name\": \"comment_count\", \"type\": \"Long\", \"nullable\": false},\n    {\"name\": \"latest_publication\", \"type\": \"LocalDateTime\", \"nullable\": true}\n  ]\n}"
+            }
+          ]
+        },
+        {
+          "name": "Create Author",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{url}}/api/v1/blog/create_author?username=john_doe&email=john.doe@example.com",
+              "host": ["{{url}}"],
+              "path": ["api", "v1", "blog", "create_author"],
+              "query": [
+                {
+                  "key": "username",
+                  "value": "john_doe",
+                  "description": "Username for the author (required, 3-255 chars, alphanumeric + underscores only, pattern: ^[a-zA-Z0-9_]+$)"
+                },
+                {
+                  "key": "email",
+                  "value": "john.doe@example.com",
+                  "description": "Email address for the author (required, valid email format, max 255 chars, must be unique)"
+                }
+              ]
+            },
+            "description": "Create a new author record in the blog system.\n\n**Required Fields:**\n- `username`: 3-255 characters, alphanumeric and underscores only, must be unique\n- `email`: Valid email format, max 255 characters, must be unique\n\n**Validation:**\n- Username pattern: `^[a-zA-Z0-9_]+$`\n- Email format validation\n- Uniqueness check for both username and email\n- Input sanitization (trim whitespace, lowercase email)\n\n**Auto-Generated:**\n- `id`: UUID (gen_random_uuid())\n- `created_at`: Current timestamp\n\n**Response:**\n- HTTP 201: Author created successfully\n- HTTP 400: Validation error (invalid format, missing fields)\n- HTTP 409: Conflict (username or email already exists)\n\n**Use Cases:**\n- Register new blog authors\n- Onboard content contributors\n- Create user accounts for the blog system"
+          },
+          "response": [
+            {
+              "name": "Success - Author Created",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{url}}/api/v1/blog/create_author?username=john_doe&email=john.doe@example.com",
+                  "host": ["{{url}}"],
+                  "path": ["api", "v1", "blog", "create_author"],
+                  "query": [
+                    {"key": "username", "value": "john_doe"},
+                    {"key": "email", "value": "john.doe@example.com"}
+                  ]
+                }
+              },
+              "status": "Created",
+              "code": 201,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {"key": "Content-Type", "value": "application/json"}
+              ],
+              "body": "{\n  \"success\": true,\n  \"count\": {\n    \"total_found\": 1,\n    \"page_size\": 1\n  },\n  \"data\": [\n    {\n      \"id\": \"a1b2c3d4-e5f6-7890-abcd-ef1234567890\",\n      \"username\": \"john_doe\",\n      \"email\": \"john.doe@example.com\",\n      \"created_at\": \"2026-01-12T10:30:15.123456\"\n    }\n  ],\n  \"columns\": [\n    {\"name\": \"id\", \"type\": \"UUID\", \"nullable\": false},\n    {\"name\": \"username\", \"type\": \"String\", \"nullable\": false},\n    {\"name\": \"email\", \"type\": \"String\", \"nullable\": false},\n    {\"name\": \"created_at\", \"type\": \"LocalDateTime\", \"nullable\": false}\n  ]\n}"
+            },
+            {
+              "name": "Error - Duplicate Username",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{url}}/api/v1/blog/create_author?username=john_doe&email=different@example.com",
+                  "host": ["{{url}}"],
+                  "path": ["api", "v1", "blog", "create_author"],
+                  "query": [
+                    {"key": "username", "value": "john_doe"},
+                    {"key": "email", "value": "different@example.com"}
+                  ]
+                }
+              },
+              "status": "Conflict",
+              "code": 409,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {"key": "Content-Type", "value": "application/json"}
+              ],
+              "body": "{\n  \"success\": false,\n  \"error\": {\n    \"code\": 409,\n    \"message\": \"Username 'john_doe' already exists\",\n    \"details\": \"An author with this username is already registered in the system\"\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Update Author",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{url}}/api/v1/blog/update_author?id={{author_id}}&username=john_doe_updated&email=john.updated@example.com",
+              "host": ["{{url}}"],
+              "path": ["api", "v1", "blog", "update_author"],
+              "query": [
+                {
+                  "key": "id",
+                  "value": "{{author_id}}",
+                  "description": "Author UUID (required, must be valid UUID format)"
+                },
+                {
+                  "key": "username",
+                  "value": "john_doe_updated",
+                  "description": "New username (optional, 3-255 chars, alphanumeric + underscores, must be unique)",
+                  "disabled": true
+                },
+                {
+                  "key": "email",
+                  "value": "john.updated@example.com",
+                  "description": "New email address (optional, valid email format, max 255 chars, must be unique)",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Update an existing author's information.\n\n**Required Fields:**\n- `id`: Author UUID (must exist in database)\n\n**Optional Fields** (at least one required):\n- `username`: New username (3-255 chars, alphanumeric + underscores, unique)\n- `email`: New email (valid email format, max 255 chars, unique)\n\n**Validation:**\n- Author ID must exist\n- At least one field (username or email) must be provided\n- Username pattern: `^[a-zA-Z0-9_]+$`\n- Email format validation\n- Uniqueness check (won't conflict with other authors)\n- Input sanitization (trim, lowercase email)\n\n**Response:**\n- HTTP 200: Author updated successfully\n- HTTP 400: Validation error (invalid format, no fields provided)\n- HTTP 404: Author not found\n- HTTP 409: Conflict (username/email already used by another author)\n\n**Use Cases:**\n- Correct author information\n- Update email addresses\n- Rebrand author username\n- Fix typos in author data"
+          },
+          "response": [
+            {
+              "name": "Success - Author Updated",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{url}}/api/v1/blog/update_author?id=a1b2c3d4-e5f6-7890-abcd-ef1234567890&username=john_doe_updated",
+                  "host": ["{{url}}"],
+                  "path": ["api", "v1", "blog", "update_author"],
+                  "query": [
+                    {"key": "id", "value": "a1b2c3d4-e5f6-7890-abcd-ef1234567890"},
+                    {"key": "username", "value": "john_doe_updated"}
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {"key": "Content-Type", "value": "application/json"}
+              ],
+              "body": "{\n  \"success\": true,\n  \"count\": {\n    \"total_found\": 1,\n    \"page_size\": 1\n  },\n  \"data\": [\n    {\n      \"id\": \"a1b2c3d4-e5f6-7890-abcd-ef1234567890\",\n      \"username\": \"john_doe_updated\",\n      \"email\": \"john.doe@example.com\",\n      \"created_at\": \"2026-01-12T10:30:15.123456\"\n    }\n  ]\n}"
+            },
+            {
+              "name": "Error - Author Not Found",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{url}}/api/v1/blog/update_author?id=00000000-0000-0000-0000-000000000000&username=test",
+                  "host": ["{{url}}"],
+                  "path": ["api", "v1", "blog", "update_author"],
+                  "query": [
+                    {"key": "id", "value": "00000000-0000-0000-0000-000000000000"},
+                    {"key": "username", "value": "test"}
+                  ]
+                }
+              },
+              "status": "Not Found",
+              "code": 404,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {"key": "Content-Type", "value": "application/json"}
+              ],
+              "body": "{\n  \"success\": false,\n  \"error\": {\n    \"code\": 404,\n    \"message\": \"Author not found\",\n    \"details\": \"No author exists with the provided ID\"\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Delete Author",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{url}}/api/v1/blog/delete_author?id={{author_id}}&confirm=true",
+              "host": ["{{url}}"],
+              "path": ["api", "v1", "blog", "delete_author"],
+              "query": [
+                {
+                  "key": "id",
+                  "value": "{{author_id}}",
+                  "description": "Author UUID to delete (required, must be valid UUID format)"
+                },
+                {
+                  "key": "confirm",
+                  "value": "true",
+                  "description": "Confirmation flag (required, must be true to proceed with deletion)"
+                }
+              ]
+            },
+            "description": "Permanently remove an author from the blog system.\n\n**⚠️ Warning:** This operation uses CASCADE delete:\n- Deleting an author will automatically delete ALL their articles\n- Deleting articles will automatically delete ALL comments on those articles\n- This operation is IRREVERSIBLE\n\n**Required Fields:**\n- `id`: Author UUID (must exist in database)\n- `confirm`: Must be `true` (safety check to prevent accidental deletion)\n\n**Cascade Effect:**\n1. Author record deleted\n2. All articles by this author deleted (CASCADE)\n3. All comments on those articles deleted (CASCADE)\n\n**Response Includes:**\n- Deleted author details\n- Count of cascade-deleted articles\n- Count of cascade-deleted comments\n- Warning message about cascade operations\n\n**Response:**\n- HTTP 200: Author and related records deleted successfully\n- HTTP 400: Validation error (missing confirmation, invalid ID)\n- HTTP 404: Author not found\n\n**Use Cases:**\n- Remove spam/abusive authors\n- Clean up test data\n- GDPR data deletion requests\n- Account termination"
+          },
+          "response": [
+            {
+              "name": "Success - Author Deleted with Cascade Info",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{url}}/api/v1/blog/delete_author?id=a1b2c3d4-e5f6-7890-abcd-ef1234567890&confirm=true",
+                  "host": ["{{url}}"],
+                  "path": ["api", "v1", "blog", "delete_author"],
+                  "query": [
+                    {"key": "id", "value": "a1b2c3d4-e5f6-7890-abcd-ef1234567890"},
+                    {"key": "confirm", "value": "true"}
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {"key": "Content-Type", "value": "application/json"}
+              ],
+              "body": "{\n  \"success\": true,\n  \"data\": [\n    {\n      \"id\": \"a1b2c3d4-e5f6-7890-abcd-ef1234567890\",\n      \"username\": \"john_doe_updated\",\n      \"email\": \"john.doe@example.com\"\n    }\n  ],\n  \"metadata\": {\n    \"cascade_deleted\": {\n      \"articles\": 14,\n      \"comments\": 103\n    },\n    \"warning\": \"Related articles and comments were also removed due to CASCADE delete constraints\"\n  }\n}"
+            },
+            {
+              "name": "Error - Missing Confirmation",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{url}}/api/v1/blog/delete_author?id=a1b2c3d4-e5f6-7890-abcd-ef1234567890&confirm=false",
+                  "host": ["{{url}}"],
+                  "path": ["api", "v1", "blog", "delete_author"],
+                  "query": [
+                    {"key": "id", "value": "a1b2c3d4-e5f6-7890-abcd-ef1234567890"},
+                    {"key": "confirm", "value": "false"}
+                  ]
+                }
+              },
+              "status": "Bad Request",
+              "code": 400,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {"key": "Content-Type", "value": "application/json"}
+              ],
+              "body": "{\n  \"success\": false,\n  \"error\": {\n    \"code\": 400,\n    \"message\": \"Confirmation required\",\n    \"details\": \"The 'confirm' parameter must be set to true to proceed with deletion. This operation will cascade delete all articles and comments.\"\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Get Author Details",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{url}}/api/v1/blog/author_details?id={{author_id}}&include_articles=true&articles_limit=5",
+              "host": ["{{url}}"],
+              "path": ["api", "v1", "blog", "author_details"],
+              "query": [
+                {
+                  "key": "id",
+                  "value": "{{author_id}}",
+                  "description": "Author UUID (required, must be valid UUID format)"
+                },
+                {
+                  "key": "include_articles",
+                  "value": "true",
+                  "description": "Include recent articles in response (optional, boolean, default: false)",
+                  "disabled": true
+                },
+                {
+                  "key": "articles_limit",
+                  "value": "5",
+                  "description": "Number of recent articles to include (optional, integer, min: 1, max: 20, default: 5)",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Retrieve detailed information about a specific author by their unique ID.\n\n**Required Fields:**\n- `id`: Author UUID (must exist in database)\n\n**Optional Fields:**\n- `include_articles`: Include recent articles (default: false)\n- `articles_limit`: Number of recent articles (1-20, default: 5)\n\n**Response Includes:**\n- Basic author information (id, username, email, created_at)\n- Article statistics:\n  - Total articles count\n  - Published articles count\n  - Draft articles count\n  - Average article length\n- Comment statistics:\n  - Total comments on all articles\n- Activity information:\n  - Latest publication date\n- Optional: Recent articles list\n\n**Statistics Provided:**\n- `total_articles`: All articles (published + drafts)\n- `published_articles`: Only published articles\n- `draft_articles`: Unpublished articles\n- `total_comments`: Comments across all articles\n- `latest_publication`: Date of most recent published article\n- `avg_article_length`: Average content length in characters\n\n**Response:**\n- HTTP 200: Author details retrieved successfully\n- HTTP 400: Invalid ID format\n- HTTP 404: Author not found\n\n**Use Cases:**\n- Display author profile page\n- Show author statistics on blog\n- Author dashboard/analytics\n- Verify author activity"
+          },
+          "response": [
+            {
+              "name": "Success - Author Details with Statistics",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{url}}/api/v1/blog/author_details?id=7a180515-2105-4e8e-9c20-0e08a694ffeb",
+                  "host": ["{{url}}"],
+                  "path": ["api", "v1", "blog", "author_details"],
+                  "query": [
+                    {"key": "id", "value": "7a180515-2105-4e8e-9c20-0e08a694ffeb"}
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {"key": "Content-Type", "value": "application/json"}
+              ],
+              "body": "{\n  \"success\": true,\n  \"data\": {\n    \"id\": \"7a180515-2105-4e8e-9c20-0e08a694ffeb\",\n    \"username\": \"amber86\",\n    \"email\": \"michael89@example.net\",\n    \"created_at\": \"2025-11-28T04:15:38\",\n    \"statistics\": {\n      \"total_articles\": 14,\n      \"published_articles\": 11,\n      \"draft_articles\": 3,\n      \"total_comments\": 103,\n      \"latest_publication\": \"2025-11-07T18:21:47\",\n      \"avg_article_length\": 4521\n    }\n  }\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Articles",
+      "description": "Operations for managing blog articles. Articles can be created as drafts or published immediately. Each article belongs to an author and can have multiple comments.",
+      "item": [
+        {
+          "name": "Create Article",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{url}}/api/v1/blog/create_article?author_id={{author_id}}&title=Introduction to Functional Java&content=Functional programming brings powerful concepts to Java...&is_published=true&publish_date=2026-01-15T10:00:00",
+              "host": ["{{url}}"],
+              "path": ["api", "v1", "blog", "create_article"],
+              "query": [
+                {
+                  "key": "author_id",
+                  "value": "{{author_id}}",
+                  "description": "Author UUID (required, must be valid UUID of existing author)"
+                },
+                {
+                  "key": "title",
+                  "value": "Introduction to Functional Java",
+                  "description": "Article title (required, 1-255 characters)"
+                },
+                {
+                  "key": "content",
+                  "value": "Functional programming brings powerful concepts to Java...",
+                  "description": "Article content/body (required, minimum 10 characters)"
+                },
+                {
+                  "key": "is_published",
+                  "value": "true",
+                  "description": "Publication status (optional, boolean, default: false)",
+                  "disabled": true
+                },
+                {
+                  "key": "publish_date",
+                  "value": "2026-01-15T10:00:00",
+                  "description": "Publication date (optional, ISO 8601 date-time format, can be future date)",
+                  "disabled": true
+                },
+                {
+                  "key": "tags",
+                  "value": "java,functional,programming",
+                  "description": "Comma-separated tags (optional, each tag max 50 chars)",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Create a new article in the blog system.\n\n**Required Fields:**\n- `author_id`: UUID of existing author (validated via foreign key)\n- `title`: Article title (1-255 characters)\n- `content`: Article body (minimum 10 characters)\n\n**Optional Fields:**\n- `is_published`: Publication status (boolean, default: false)\n  - `false`: Creates as draft\n  - `true`: Publishes immediately\n- `publish_date`: Publication date/time (ISO 8601 format)\n  - Can be set to future date for scheduled publishing\n  - If not provided and is_published=true, uses current timestamp\n- `tags`: Array of tags for categorization (each max 50 chars)\n\n**Validation:**\n- Author must exist (foreign key constraint)\n- Title: trimmed, 1-255 characters\n- Content: trimmed, minimum 10 characters\n- Input sanitization applied\n\n**Auto-Generated:**\n- `id`: UUID (gen_random_uuid())\n- `created_at`: Current timestamp\n- `updated_at`: Current timestamp\n\n**Response:**\n- HTTP 201: Article created successfully\n- HTTP 400: Validation error (invalid format, missing required fields)\n- HTTP 404: Author not found\n\n**Use Cases:**\n- Create new blog posts\n- Save draft articles for later\n- Schedule articles for future publication\n- Author content management"
+          },
+          "response": [
+            {
+              "name": "Success - Article Created (Published)",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{url}}/api/v1/blog/create_article?author_id=7a180515-2105-4e8e-9c20-0e08a694ffeb&title=Functional Java&content=Introduction to functional programming in Java&is_published=true",
+                  "host": ["{{url}}"],
+                  "path": ["api", "v1", "blog", "create_article"],
+                  "query": [
+                    {"key": "author_id", "value": "7a180515-2105-4e8e-9c20-0e08a694ffeb"},
+                    {"key": "title", "value": "Functional Java"},
+                    {"key": "content", "value": "Introduction to functional programming in Java"},
+                    {"key": "is_published", "value": "true"}
+                  ]
+                }
+              },
+              "status": "Created",
+              "code": 201,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {"key": "Content-Type", "value": "application/json"}
+              ],
+              "body": "{\n  \"success\": true,\n  \"count\": {\n    \"total_found\": 1,\n    \"page_size\": 1\n  },\n  \"data\": [\n    {\n      \"id\": \"f1e2d3c4-b5a6-7890-1234-567890abcdef\",\n      \"title\": \"Functional Java\",\n      \"content\": \"Introduction to functional programming in Java\",\n      \"author_id\": \"7a180515-2105-4e8e-9c20-0e08a694ffeb\",\n      \"is_published\": true,\n      \"publish_date\": \"2026-01-12T10:45:30.123456\",\n      \"created_at\": \"2026-01-12T10:45:30.123456\"\n    }\n  ],\n  \"metadata\": {\n    \"is_published\": true,\n    \"has_publish_date\": true\n  }\n}"
+            },
+            {
+              "name": "Success - Article Created (Draft)",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{url}}/api/v1/blog/create_article?author_id=7a180515-2105-4e8e-9c20-0e08a694ffeb&title=Work in Progress&content=This is still being written...",
+                  "host": ["{{url}}"],
+                  "path": ["api", "v1", "blog", "create_article"],
+                  "query": [
+                    {"key": "author_id", "value": "7a180515-2105-4e8e-9c20-0e08a694ffeb"},
+                    {"key": "title", "value": "Work in Progress"},
+                    {"key": "content", "value": "This is still being written..."}
+                  ]
+                }
+              },
+              "status": "Created",
+              "code": 201,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {"key": "Content-Type", "value": "application/json"}
+              ],
+              "body": "{\n  \"success\": true,\n  \"data\": [\n    {\n      \"id\": \"a2b3c4d5-e6f7-8901-2345-67890abcdef1\",\n      \"title\": \"Work in Progress\",\n      \"content\": \"This is still being written...\",\n      \"author_id\": \"7a180515-2105-4e8e-9c20-0e08a694ffeb\",\n      \"is_published\": false,\n      \"publish_date\": null,\n      \"created_at\": \"2026-01-12T10:50:15.654321\"\n    }\n  ],\n  \"metadata\": {\n    \"is_published\": false,\n    \"has_publish_date\": false\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Update Article",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{url}}/api/v1/blog/update_article?id={{article_id}}&title=Updated Title&content=Updated content with more details&is_published=true&publish_date=2026-01-20T12:00:00",
+              "host": ["{{url}}"],
+              "path": ["api", "v1", "blog", "update_article"],
+              "query": [
+                {
+                  "key": "id",
+                  "value": "{{article_id}}",
+                  "description": "Article UUID (required, must be valid UUID format)"
+                },
+                {
+                  "key": "title",
+                  "value": "Updated Title",
+                  "description": "New article title (optional, 1-255 characters)",
+                  "disabled": true
+                },
+                {
+                  "key": "content",
+                  "value": "Updated content with more details",
+                  "description": "New article content (optional, minimum 10 characters)",
+                  "disabled": true
+                },
+                {
+                  "key": "is_published",
+                  "value": "true",
+                  "description": "New publication status (optional, boolean)",
+                  "disabled": true
+                },
+                {
+                  "key": "publish_date",
+                  "value": "2026-01-20T12:00:00",
+                  "description": "New publication date (optional, ISO 8601 date-time format)",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Update an existing article.\n\n**Required Fields:**\n- `id`: Article UUID (must exist in database)\n\n**Optional Fields** (at least one required):\n- `title`: New title (1-255 characters)\n- `content`: New content (minimum 10 characters)\n- `is_published`: Change publication status\n  - Set to `true` to publish a draft\n  - Set to `false` to unpublish an article\n- `publish_date`: Update publication date/time\n\n**Automatic Updates:**\n- `updated_at`: Automatically set to current timestamp on any update\n\n**Validation:**\n- Article ID must exist\n- At least one field must be provided for update\n- Title and content constraints enforced\n- Input sanitization applied\n\n**Common Workflows:**\n1. **Publish a Draft**: Set `is_published=true`\n2. **Unpublish**: Set `is_published=false`\n3. **Edit Content**: Update `title` and/or `content`\n4. **Reschedule**: Update `publish_date`\n\n**Response:**\n- HTTP 200: Article updated successfully\n- HTTP 400: Validation error (no fields provided, invalid format)\n- HTTP 404: Article not found\n\n**Use Cases:**\n- Edit article content\n- Publish draft articles\n- Unpublish articles temporarily\n- Reschedule publication dates\n- Fix typos and update information"
+          },
+          "response": [
+            {
+              "name": "Success - Article Updated",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{url}}/api/v1/blog/update_article?id=f1e2d3c4-b5a6-7890-1234-567890abcdef&is_published=true",
+                  "host": ["{{url}}"],
+                  "path": ["api", "v1", "blog", "update_article"],
+                  "query": [
+                    {"key": "id", "value": "f1e2d3c4-b5a6-7890-1234-567890abcdef"},
+                    {"key": "is_published", "value": "true"}
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {"key": "Content-Type", "value": "application/json"}
+              ],
+              "body": "{\n  \"success\": true,\n  \"data\": [\n    {\n      \"id\": \"f1e2d3c4-b5a6-7890-1234-567890abcdef\",\n      \"title\": \"Functional Java\",\n      \"content\": \"Introduction to functional programming in Java\",\n      \"author_id\": \"7a180515-2105-4e8e-9c20-0e08a694ffeb\",\n      \"is_published\": true,\n      \"publish_date\": \"2026-01-12T10:45:30.123456\",\n      \"updated_at\": \"2026-01-12T11:20:45.987654\"\n    }\n  ],\n  \"changed_fields\": {\n    \"title\": false,\n    \"content\": false,\n    \"is_published\": true,\n    \"publish_date\": false\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "List Articles by Author (Advanced)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{url}}/api/v1/blog/list_articles_by_author?author_id={{author_id}}&search_content=Java&published=true&created_after=2025-01-01&min_comments=5&sort=publish_date&sort_dir=desc&page=1&limit=20",
+              "host": ["{{url}}"],
+              "path": ["api", "v1", "blog", "list_articles_by_author"],
+              "query": [
+                {
+                  "key": "author_id",
+                  "value": "{{author_id}}",
+                  "description": "Author UUID (required, must be valid UUID format)"
+                },
+                {
+                  "key": "search_content",
+                  "value": "Java",
+                  "description": "Full-text search in article title and content (optional, uses PostgreSQL tsvector)",
+                  "disabled": true
+                },
+                {
+                  "key": "published",
+                  "value": "true",
+                  "description": "Filter by publication status (optional, boolean: true=published, false=drafts)",
+                  "disabled": true
+                },
+                {
+                  "key": "created_after",
+                  "value": "2025-01-01",
+                  "description": "Filter articles created after this date (optional, ISO 8601 format)",
+                  "disabled": true
+                },
+                {
+                  "key": "created_before",
+                  "value": "2026-01-31",
+                  "description": "Filter articles created before this date (optional, ISO 8601 format)",
+                  "disabled": true
+                },
+                {
+                  "key": "updated_after",
+                  "value": "2025-06-01",
+                  "description": "Filter articles updated after this date (optional, ISO 8601 format)",
+                  "disabled": true
+                },
+                {
+                  "key": "min_comments",
+                  "value": "5",
+                  "description": "Minimum number of comments (optional, integer, min: 0)",
+                  "disabled": true
+                },
+                {
+                  "key": "max_comments",
+                  "value": "100",
+                  "description": "Maximum number of comments (optional, integer, min: 0)",
+                  "disabled": true
+                },
+                {
+                  "key": "content_length_min",
+                  "value": "1000",
+                  "description": "Minimum content length in characters (optional, integer, min: 0)",
+                  "disabled": true
+                },
+                {
+                  "key": "content_length_max",
+                  "value": "10000",
+                  "description": "Maximum content length in characters (optional, integer, min: 0)",
+                  "disabled": true
+                },
+                {
+                  "key": "sort",
+                  "value": "publish_date",
+                  "description": "Sort field (optional, options: created_at, publish_date, updated_at, title, comment_count, content_length, default: publish_date)",
+                  "disabled": true
+                },
+                {
+                  "key": "sort_dir",
+                  "value": "desc",
+                  "description": "Sort direction (optional, options: asc, desc, default: desc)",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Page number (optional, integer, min: 1, default: 1)",
+                  "disabled": true
+                },
+                {
+                  "key": "limit",
+                  "value": "20",
+                  "description": "Items per page (optional, integer, min: 1, max: 100, default: 20)",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Retrieve articles by a specific author with advanced filtering options.\n\n**Required Fields:**\n- `author_id`: UUID of the author\n\n**Search & Filter Options:**\n\n**Content Search:**\n- `search_content`: Full-text search using PostgreSQL tsvector\n  - Searches in both title and content fields\n  - Ranks results by relevance (ts_rank_cd)\n  - Case-insensitive, stemming support\n\n**Status Filters:**\n- `published`: Filter by publication status (true/false)\n\n**Date Range Filters:**\n- `created_after` / `created_before`: Filter by creation date\n- `updated_after`: Filter by last update date\n\n**Engagement Filters:**\n- `min_comments` / `max_comments`: Filter by comment count range\n- `content_length_min` / `content_length_max`: Filter by article length\n\n**Response Includes:**\n- Article preview (first 300 characters)\n- Full content length\n- Comment count\n- Latest comment date\n- Author information\n- Publication status and dates\n- Search relevance ranking (when search is used)\n\n**Statistics (Window Functions):**\n- Total matching articles count\n- Average content length across results\n- Average comment count across results\n\n**Sorting Options:**\n- By date: created_at, publish_date, updated_at\n- By engagement: comment_count\n- By content: title (alphabetical), content_length\n- When searching: search relevance rank\n\n**Pagination:**\n- Default: 20 articles per page\n- Maximum: 100 articles per page\n\n**Response:**\n- HTTP 200: Articles retrieved successfully (empty array if none match)\n- HTTP 400: Invalid parameters\n- HTTP 404: Author not found\n\n**Use Cases:**\n- Author portfolio/profile page\n- Find popular articles by author\n- Content management dashboard\n- Search author's published work\n- Analyze author's writing patterns\n- Filter drafts vs published content"
+          },
+          "response": [
+            {
+              "name": "Success - Articles List with Statistics",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{url}}/api/v1/blog/list_articles_by_author?author_id=7a180515-2105-4e8e-9c20-0e08a694ffeb&limit=5",
+                  "host": ["{{url}}"],
+                  "path": ["api", "v1", "blog", "list_articles_by_author"],
+                  "query": [
+                    {"key": "author_id", "value": "7a180515-2105-4e8e-9c20-0e08a694ffeb"},
+                    {"key": "limit", "value": "5"}
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {"key": "Content-Type", "value": "application/json"}
+              ],
+              "body": "{\n  \"success\": true,\n  \"count\": {\n    \"total_found\": 14,\n    \"page_size\": 5\n  },\n  \"data\": [\n    {\n      \"id\": \"f1e2d3c4-b5a6-7890-1234-567890abcdef\",\n      \"title\": \"Functional Java Programming\",\n      \"content_preview\": \"Introduction to functional programming in Java 21 and beyond. Learn about sealed classes, pattern matching, records, and more...\",\n      \"content_length\": 4521,\n      \"is_published\": true,\n      \"publish_date\": \"2025-11-07T18:21:47\",\n      \"created_at\": \"2025-11-01T10:30:00\",\n      \"updated_at\": \"2025-11-07T09:15:00\",\n      \"author_username\": \"amber86\",\n      \"author_email\": \"michael89@example.net\",\n      \"comment_count\": 12,\n      \"latest_comment\": \"2025-11-15T14:22:00\"\n    }\n  ],\n  \"metadata\": {\n    \"author_id\": \"7a180515-2105-4e8e-9c20-0e08a694ffeb\",\n    \"search_performed\": false,\n    \"statistics\": {\n      \"avg_content_length\": 4123,\n      \"avg_comment_count\": 8.5\n    }\n  },\n  \"pagination\": {\n    \"page\": 1,\n    \"limit\": 5,\n    \"total_pages\": 3,\n    \"has_next\": true,\n    \"has_previous\": false\n  }\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Comments",
+      "description": "Operations for managing comments on articles. Comments can be created by anyone (with name/email) and associated with published or draft articles.",
+      "item": [
+        {
+          "name": "Comment on Article",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{url}}/api/v1/blog/comment_on_article?article_id={{article_id}}&author_name=Jane Reader&author_email=jane@example.com&content=Great article! Very informative.&notify_on_reply=true",
+              "host": ["{{url}}"],
+              "path": ["api", "v1", "blog", "comment_on_article"],
+              "query": [
+                {
+                  "key": "article_id",
+                  "value": "{{article_id}}",
+                  "description": "Article UUID (required, must be valid UUID of existing article)"
+                },
+                {
+                  "key": "author_name",
+                  "value": "Jane Reader",
+                  "description": "Commenter name (required, 1-255 characters)"
+                },
+                {
+                  "key": "author_email",
+                  "value": "jane@example.com",
+                  "description": "Commenter email (optional, valid email format, max 255 chars)",
+                  "disabled": true
+                },
+                {
+                  "key": "content",
+                  "value": "Great article! Very informative.",
+                  "description": "Comment text (required, 1-2000 characters)"
+                },
+                {
+                  "key": "notify_on_reply",
+                  "value": "true",
+                  "description": "Enable reply notifications (optional, boolean, default: false)",
+                  "disabled": true
+                },
+                {
+                  "key": "allow_on_unpublished",
+                  "value": "false",
+                  "description": "Allow commenting on unpublished articles (optional, boolean, default: false, usually admin only)",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Add a comment to a specific article.\n\n**Required Fields:**\n- `article_id`: UUID of the target article (must exist)\n- `author_name`: Name of the commenter (1-255 characters)\n- `content`: Comment text (1-2000 characters)\n\n**Optional Fields:**\n- `author_email`: Email address (valid email format, max 255 chars)\n  - Used for notifications and gravatar\n  - Not publicly displayed by default\n- `notify_on_reply`: Enable email notifications (boolean, default: false)\n- `allow_on_unpublished`: Allow commenting on drafts (boolean, default: false)\n  - Typically only used by admins/editors\n  - Normal users can only comment on published articles\n\n**Validation:**\n- Article must exist\n- Article must be published (unless allow_on_unpublished=true)\n- Author name: trimmed, 1-255 characters\n- Content: trimmed, 1-2000 characters\n- Email: validated format, trimmed, lowercased\n- Input sanitization to prevent XSS\n\n**Auto-Generated:**\n- `id`: UUID (gen_random_uuid())\n- `comment_date`: Current timestamp\n- `created_at`: Current timestamp\n\n**Response Includes:**\n- Created comment details\n- Article context (title, author)\n- Notification settings\n\n**Response:**\n- HTTP 201: Comment created successfully\n- HTTP 400: Validation error (invalid format, content too long)\n- HTTP 403: Cannot comment on unpublished article\n- HTTP 404: Article not found\n\n**Use Cases:**\n- Reader feedback on articles\n- Discussion threads\n- Community engagement\n- Article reviews and responses"
+          },
+          "response": [
+            {
+              "name": "Success - Comment Created",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{url}}/api/v1/blog/comment_on_article?article_id=f1e2d3c4-b5a6-7890-1234-567890abcdef&author_name=Jane Reader&author_email=jane@example.com&content=Great article!",
+                  "host": ["{{url}}"],
+                  "path": ["api", "v1", "blog", "comment_on_article"],
+                  "query": [
+                    {"key": "article_id", "value": "f1e2d3c4-b5a6-7890-1234-567890abcdef"},
+                    {"key": "author_name", "value": "Jane Reader"},
+                    {"key": "author_email", "value": "jane@example.com"},
+                    {"key": "content", "value": "Great article!"}
+                  ]
+                }
+              },
+              "status": "Created",
+              "code": 201,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {"key": "Content-Type", "value": "application/json"}
+              ],
+              "body": "{\n  \"success\": true,\n  \"data\": {\n    \"comment\": {\n      \"id\": \"c1d2e3f4-a5b6-7890-1234-567890fedcba\",\n      \"article_id\": \"f1e2d3c4-b5a6-7890-1234-567890abcdef\",\n      \"author_name\": \"Jane Reader\",\n      \"author_email\": \"jane@example.com\",\n      \"content\": \"Great article!\",\n      \"comment_date\": \"2026-01-12T11:30:45.123456\"\n    },\n    \"article\": {\n      \"title\": \"Functional Java Programming\",\n      \"author_username\": \"amber86\"\n    }\n  },\n  \"metadata\": {\n    \"article_title\": \"Functional Java Programming\",\n    \"article_author\": \"amber86\",\n    \"notification_enabled\": false\n  }\n}"
+            },
+            {
+              "name": "Error - Article Not Published",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{url}}/api/v1/blog/comment_on_article?article_id=a2b3c4d5-e6f7-8901-2345-67890abcdef1&author_name=Jane&content=Test",
+                  "host": ["{{url}}"],
+                  "path": ["api", "v1", "blog", "comment_on_article"],
+                  "query": [
+                    {"key": "article_id", "value": "a2b3c4d5-e6f7-8901-2345-67890abcdef1"},
+                    {"key": "author_name", "value": "Jane"},
+                    {"key": "content", "value": "Test"}
+                  ]
+                }
+              },
+              "status": "Forbidden",
+              "code": 403,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {"key": "Content-Type", "value": "application/json"}
+              ],
+              "body": "{\n  \"success\": false,\n  \"error\": {\n    \"code\": 403,\n    \"message\": \"Cannot comment on unpublished article\",\n    \"details\": \"This article is not yet published. Comments are only allowed on published articles.\"\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Update Comment",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{url}}/api/v1/blog/update_comment?id={{comment_id}}&content=Updated comment with corrections&edit_reason=Fixed typo",
+              "host": ["{{url}}"],
+              "path": ["api", "v1", "blog", "update_comment"],
+              "query": [
+                {
+                  "key": "id",
+                  "value": "{{comment_id}}",
+                  "description": "Comment UUID (required, must be valid UUID format)"
+                },
+                {
+                  "key": "content",
+                  "value": "Updated comment with corrections",
+                  "description": "New comment text (optional, 1-2000 characters)",
+                  "disabled": true
+                },
+                {
+                  "key": "edit_reason",
+                  "value": "Fixed typo",
+                  "description": "Reason for edit (optional, max 255 chars, displayed as edit history)",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Update an existing comment's content.\n\n**Required Fields:**\n- `id`: Comment UUID (must exist in database)\n\n**Optional Fields** (at least one required):\n- `content`: New comment text (1-2000 characters)\n- `edit_reason`: Explanation for the edit (max 255 characters)\n  - Stored in metadata\n  - Can be displayed to users\n  - Helps maintain transparency\n\n**Validation:**\n- Comment ID must exist\n- Content: trimmed, 1-2000 characters\n- Edit reason: trimmed, max 255 characters\n- Input sanitization to prevent XSS\n\n**Edit History:**\n- Previous state captured\n- Edit timestamp recorded\n- Edit reason stored in metadata\n- Changed fields tracked\n\n**Response Includes:**\n- Updated comment\n- Previous state (for comparison)\n- Article context\n- Edit metadata (reason, timestamp, changed fields)\n\n**Response:**\n- HTTP 200: Comment updated successfully\n- HTTP 400: Validation error (no fields provided, content too long)\n- HTTP 404: Comment not found\n\n**Use Cases:**\n- Fix typos in comments\n- Update outdated information\n- Clarify misunderstood comments\n- Edit for clarity\n- Moderation edits (with reason)"
+          },
+          "response": [
+            {
+              "name": "Success - Comment Updated",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{url}}/api/v1/blog/update_comment?id=c1d2e3f4-a5b6-7890-1234-567890fedcba&content=Great article! Updated with more thoughts.",
+                  "host": ["{{url}}"],
+                  "path": ["api", "v1", "blog", "update_comment"],
+                  "query": [
+                    {"key": "id", "value": "c1d2e3f4-a5b6-7890-1234-567890fedcba"},
+                    {"key": "content", "value": "Great article! Updated with more thoughts."}
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {"key": "Content-Type", "value": "application/json"}
+              ],
+              "body": "{\n  \"success\": true,\n  \"data\": {\n    \"updated_comment\": {\n      \"id\": \"c1d2e3f4-a5b6-7890-1234-567890fedcba\",\n      \"content\": \"Great article! Updated with more thoughts.\"\n    },\n    \"previous_state\": {\n      \"content\": \"Great article!\",\n      \"article_title\": \"Functional Java Programming\"\n    }\n  },\n  \"metadata\": {\n    \"article_title\": \"Functional Java Programming\",\n    \"edit_reason\": null,\n    \"fields_changed\": {\n      \"author_name\": false,\n      \"author_email\": false,\n      \"content\": true\n    }\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "List Comments by Article",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{url}}/api/v1/blog/list_comments_by_article?article_id={{article_id}}&search_comment=informative&created_after=2025-01-01&has_email=true&min_length=10&sort=comment_date&sort_dir=desc&page=1&limit=50",
+              "host": ["{{url}}"],
+              "path": ["api", "v1", "blog", "list_comments_by_article"],
+              "query": [
+                {
+                  "key": "article_id",
+                  "value": "{{article_id}}",
+                  "description": "Article UUID (required, must be valid UUID format)"
+                },
+                {
+                  "key": "search_comment",
+                  "value": "informative",
+                  "description": "Full-text search within comment content (optional, uses PostgreSQL tsvector)",
+                  "disabled": true
+                },
+                {
+                  "key": "author_email",
+                  "value": "jane@example.com",
+                  "description": "Filter by commenter email (optional, exact match)",
+                  "disabled": true
+                },
+                {
+                  "key": "created_after",
+                  "value": "2025-01-01",
+                  "description": "Filter comments created after this date (optional, ISO 8601 format)",
+                  "disabled": true
+                },
+                {
+                  "key": "created_before",
+                  "value": "2026-01-31",
+                  "description": "Filter comments created before this date (optional, ISO 8601 format)",
+                  "disabled": true
+                },
+                {
+                  "key": "has_email",
+                  "value": "true",
+                  "description": "Filter by email presence (optional, boolean: true=with email, false=without email)",
+                  "disabled": true
+                },
+                {
+                  "key": "min_length",
+                  "value": "10",
+                  "description": "Minimum comment length in characters (optional, integer, min: 0)",
+                  "disabled": true
+                },
+                {
+                  "key": "max_length",
+                  "value": "500",
+                  "description": "Maximum comment length in characters (optional, integer, min: 0)",
+                  "disabled": true
+                },
+                {
+                  "key": "sort",
+                  "value": "comment_date",
+                  "description": "Sort field (optional, options: comment_date, created_at, author_name, content_length, default: comment_date)",
+                  "disabled": true
+                },
+                {
+                  "key": "sort_dir",
+                  "value": "desc",
+                  "description": "Sort direction (optional, options: asc, desc, default: desc)",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Page number (optional, integer, min: 1, default: 1)",
+                  "disabled": true
+                },
+                {
+                  "key": "limit",
+                  "value": "50",
+                  "description": "Items per page (optional, integer, min: 1, max: 100, default: 50)",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Retrieve all comments for a specific article with advanced filtering.\n\n**Required Fields:**\n- `article_id`: UUID of the article\n\n**Search & Filter Options:**\n\n**Content Search:**\n- `search_comment`: Full-text search in comment content\n  - Uses PostgreSQL tsvector for intelligent matching\n  - Case-insensitive with stemming support\n\n**Commenter Filters:**\n- `author_email`: Find all comments by specific email\n- `has_email`: Filter by email presence\n  - `true`: Only comments with email provided\n  - `false`: Only anonymous comments (no email)\n\n**Date Range Filters:**\n- `created_after` / `created_before`: Filter by comment date\n\n**Content Filters:**\n- `min_length` / `max_length`: Filter by comment length\n  - Useful for finding substantial vs brief comments\n\n**Response Includes:**\n- Comment details (id, content, author info, dates)\n- Content length\n- Article context (title, author)\n- Email presence indicator\n\n**Statistics (Window Functions):**\n- Total comments count\n- Average comment length\n- Count of comments with email\n- Percentage with email\n\n**Sorting Options:**\n- By date: comment_date, created_at\n- By author: author_name (alphabetical)\n- By content: content_length\n\n**Pagination:**\n- Default: 50 comments per page\n- Maximum: 100 comments per page\n\n**Response:**\n- HTTP 200: Comments retrieved successfully (empty array if none)\n- HTTP 400: Invalid parameters\n- HTTP 404: Article not found\n\n**Use Cases:**\n- Display article comments section\n- Moderate comments by content\n- Find comments by specific users\n- Analyze comment engagement\n- Filter spam/short comments\n- Export comment data for analysis"
+          },
+          "response": [
+            {
+              "name": "Success - Comments List with Statistics",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{url}}/api/v1/blog/list_comments_by_article?article_id=f1e2d3c4-b5a6-7890-1234-567890abcdef",
+                  "host": ["{{url}}"],
+                  "path": ["api", "v1", "blog", "list_comments_by_article"],
+                  "query": [
+                    {"key": "article_id", "value": "f1e2d3c4-b5a6-7890-1234-567890abcdef"}
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {"key": "Content-Type", "value": "application/json"}
+              ],
+              "body": "{\n  \"success\": true,\n  \"count\": {\n    \"total_found\": 12,\n    \"page_size\": 12\n  },\n  \"data\": [\n    {\n      \"id\": \"c1d2e3f4-a5b6-7890-1234-567890fedcba\",\n      \"author_name\": \"Jane Reader\",\n      \"author_email\": \"jane@example.com\",\n      \"content\": \"Great article! Updated with more thoughts.\",\n      \"content_length\": 42,\n      \"comment_date\": \"2026-01-12T11:30:45.123456\",\n      \"created_at\": \"2026-01-12T11:30:45.123456\",\n      \"article_title\": \"Functional Java Programming\",\n      \"article_author\": \"amber86\",\n      \"has_contact\": true\n    }\n  ],\n  \"metadata\": {\n    \"article_id\": \"f1e2d3c4-b5a6-7890-1234-567890abcdef\",\n    \"article_title\": \"Functional Java Programming\",\n    \"article_author\": \"amber86\",\n    \"filters_applied\": {\n      \"search\": null,\n      \"date_range\": {\n        \"from\": null,\n        \"to\": null\n      },\n      \"email_filter\": null\n    },\n    \"statistics\": {\n      \"total_comments\": 12,\n      \"avg_comment_length\": 127,\n      \"comments_with_email\": 9,\n      \"percentage_with_email\": 75.0\n    }\n  },\n  \"pagination\": {\n    \"page\": 1,\n    \"limit\": 50,\n    \"total_pages\": 1,\n    \"has_next\": false,\n    \"has_previous\": false\n  }\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Statistics",
+      "description": "System-wide statistics and analytics for the blog platform.",
+      "item": [
+        {
+          "name": "Stats Overview",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{url}}/api/v1/blog/stats_overview?timeframe=month&search_content=Java&author_id={{author_id}}",
+              "host": ["{{url}}"],
+              "path": ["api", "v1", "blog", "stats_overview"],
+              "query": [
+                {
+                  "key": "search_content",
+                  "value": "Java",
+                  "description": "Filter statistics by content search (optional, full-text search in articles)",
+                  "disabled": true
+                },
+                {
+                  "key": "search_comment",
+                  "value": "helpful",
+                  "description": "Filter statistics by comment search (optional, full-text search in comments)",
+                  "disabled": true
+                },
+                {
+                  "key": "timeframe",
+                  "value": "month",
+                  "description": "Time period filter (optional, options: day, week, month, quarter, year, all, default: all)",
+                  "disabled": true
+                },
+                {
+                  "key": "author_id",
+                  "value": "{{author_id}}",
+                  "description": "Filter statistics for specific author (optional, UUID format)",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Generate comprehensive statistics overview for the entire blog system.\n\n**Optional Filters:**\n- `search_content`: Filter by content search (affects article-related stats)\n- `search_comment`: Filter by comment search (affects comment-related stats)\n- `timeframe`: Time period (day, week, month, quarter, year, all)\n- `author_id`: Limit statistics to specific author\n\n**Statistics Categories:**\n\n**1. Author Statistics:**\n- Total authors registered\n- Active authors (with at least one article)\n- Newest and oldest author registration dates\n- Most active author (by article count and engagement)\n\n**2. Article Statistics:**\n- Total articles count\n- Published vs draft articles\n- Average article length (characters)\n- Latest and earliest publication dates\n- Authors with articles count\n- Publication rate (published/total ratio)\n\n**3. Comment Statistics:**\n- Total comments count\n- Unique commenters (by email)\n- Average comment length\n- Latest and earliest comment dates\n- Articles with comments count\n- Comments with email provided\n- Email percentage\n\n**4. Engagement Metrics:**\n- Average comments per article\n- Most commented article (title, count)\n- Most active author (username, articles, comments)\n- Comment engagement rate\n\n**Advanced Features:**\n- Uses Common Table Expressions (CTEs) for complex aggregations\n- Window functions for averages and rankings\n- Full-text search integration\n- Filtered statistics (apply search to see targeted metrics)\n\n**Calculated Metrics:**\n- Publication rate: published / total articles\n- Draft ratio: drafts / total articles\n- Email percentage: comments with email / total comments\n- Comments per article: total comments / total articles\n- Author engagement: comments per article per author\n\n**Response:**\n- HTTP 200: Statistics generated successfully\n- HTTP 400: Invalid parameters (unknown timeframe, invalid UUID)\n\n**Use Cases:**\n- Admin dashboard\n- System health monitoring\n- Content strategy analysis\n- User engagement metrics\n- Platform growth tracking\n- Performance reporting\n- Demo showcases"
+          },
+          "response": [
+            {
+              "name": "Success - Complete Statistics Overview",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{url}}/api/v1/blog/stats_overview",
+                  "host": ["{{url}}"],
+                  "path": ["api", "v1", "blog", "stats_overview"]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {"key": "Content-Type", "value": "application/json"}
+              ],
+              "body": "{\n  \"success\": true,\n  \"data\": {\n    \"authors\": {\n      \"total_authors\": 116,\n      \"active_authors\": 54,\n      \"newest_author\": \"2026-01-08T10:41:36\",\n      \"oldest_author\": \"2025-02-24T10:21:15\"\n    },\n    \"articles\": {\n      \"total_articles\": 487,\n      \"published_articles\": 362,\n      \"draft_articles\": 125,\n      \"avg_article_length\": 4123,\n      \"latest_publication\": \"2026-01-07T18:21:47\",\n      \"earliest_publication\": \"2025-03-15T09:30:00\",\n      \"authors_with_articles\": 54\n    },\n    \"comments\": {\n      \"total_comments\": 3542,\n      \"unique_commenters\": 892,\n      \"avg_comment_length\": 127,\n      \"latest_comment\": \"2026-01-12T11:30:45\",\n      \"earliest_comment\": \"2025-03-16T10:15:00\",\n      \"articles_with_comments\": 298,\n      \"comments_with_email\": 2677\n    },\n    \"engagement\": {\n      \"avg_comments_per_article\": 7.3,\n      \"most_commented_article\": {\n        \"id\": \"f1e2d3c4-b5a6-7890-1234-567890abcdef\",\n        \"title\": \"Functional Java Programming\",\n        \"comment_count\": 45\n      },\n      \"most_active_author\": {\n        \"id\": \"eed24ed9-929c-4933-be35-8815347025aa\",\n        \"username\": \"mendozacurtis\",\n        \"article_count\": 23,\n        \"total_comments\": 231\n      }\n    }\n  },\n  \"metadata\": {\n    \"report_name\": \"Blog System Overview Statistics\",\n    \"generated_at\": \"2026-01-12T12:00:00\",\n    \"timeframe\": \"all\",\n    \"filters_applied\": {\n      \"content_search\": null,\n      \"comment_search\": null,\n      \"author_filter\": null\n    }\n  },\n  \"calculated_metrics\": {\n    \"articles\": {\n      \"publication_rate\": 74.3,\n      \"draft_ratio\": 25.7\n    },\n    \"comments\": {\n      \"email_percentage\": 75.6,\n      \"comments_per_article\": 7.3\n    },\n    \"engagement\": {\n      \"author_engagement\": 9.0\n    }\n  }\n}"
+            },
+            {
+              "name": "Success - Filtered Statistics (Timeframe)",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{url}}/api/v1/blog/stats_overview?timeframe=month",
+                  "host": ["{{url}}"],
+                  "path": ["api", "v1", "blog", "stats_overview"],
+                  "query": [
+                    {"key": "timeframe", "value": "month"}
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {"key": "Content-Type", "value": "application/json"}
+              ],
+              "body": "{\n  \"success\": true,\n  \"data\": {\n    \"authors\": {\n      \"total_authors\": 116,\n      \"active_authors\": 12\n    },\n    \"articles\": {\n      \"total_articles\": 34,\n      \"published_articles\": 28,\n      \"draft_articles\": 6\n    },\n    \"comments\": {\n      \"total_comments\": 187,\n      \"unique_commenters\": 52\n    },\n    \"engagement\": {\n      \"avg_comments_per_article\": 5.5\n    }\n  },\n  \"metadata\": {\n    \"report_name\": \"Blog System Overview Statistics\",\n    \"generated_at\": \"2026-01-12T12:00:00\",\n    \"timeframe\": \"month\",\n    \"filters_applied\": {\n      \"content_search\": null,\n      \"comment_search\": null,\n      \"author_filter\": null\n    }\n  },\n  \"calculated_metrics\": {\n    \"articles\": {\n      \"publication_rate\": 82.4,\n      \"draft_ratio\": 17.6\n    },\n    \"comments\": {\n      \"comments_per_article\": 5.5\n    }\n  }\n}"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "url",
+      "value": "http://localhost:8080",
+      "type": "string"
+    },
+    {
+      "key": "author_id",
+      "value": "7a180515-2105-4e8e-9c20-0e08a694ffeb",
+      "type": "string"
+    },
+    {
+      "key": "article_id",
+      "value": "f1e2d3c4-b5a6-7890-1234-567890abcdef",
+      "type": "string"
+    },
+    {
+      "key": "comment_id",
+      "value": "c1d2e3f4-a5b6-7890-1234-567890fedcba",
+      "type": "string"
+    }
+  ]
+}
+

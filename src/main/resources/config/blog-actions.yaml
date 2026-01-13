@@ -1,0 +1,1161 @@
+mcp: 1.0.0
+info:
+  name: "blog-db-api"
+  version: "2.0.0"
+  description: "Complete REST API for blog management system with authors, articles, and comments. Enhanced with comprehensive documentation resources and MCP capabilities."
+  authors: [ "Blog API Team" ]
+  repository: "https://github.com/blog/mcp-server"
+
+# ==============================================================================
+# TOOLS (Claude-compatible MCP manifest)
+# ==============================================================================
+tools:
+  # --------------------------------------------------------------------------
+  # AUTHOR TOOLS (CRUD)
+  # --------------------------------------------------------------------------
+  - name: "create_author"
+    uri: "create_author"
+    description: "Create a new author record with username and email. Username must be unique alphanumeric with underscores."
+    inputSchema:
+      type: "object"
+      properties:
+        username:
+          type: "string"
+          maxLength: 255
+          minLength: 3
+          pattern: "^[a-zA-Z0-9_]+$"
+          description: "Unique username (alphanumeric + underscores)"
+        email:
+          type: "string"
+          format: "email"
+          maxLength: 255
+          description: "Unique email address"
+      required: [ "username", "email" ]
+      additionalProperties: false
+    metadata:
+      category: "authors"
+      operationId: "createAuthor"
+      http:
+        method: "POST"
+        path: "/authors"
+      pipeline: "create_author"
+
+  - name: "update_author"
+    uri: "update_author"
+    description: "Update an existing author's username or email. At least one field must be provided."
+    inputSchema:
+      type: "object"
+      properties:
+        id:
+          type: "string"
+          format: "uuid"
+          description: "UUID of the author to update"
+        username:
+          type: "string"
+          maxLength: 255
+          minLength: 3
+          pattern: "^[a-zA-Z0-9_]+$"
+          description: "New username (optional)"
+        email:
+          type: "string"
+          format: "email"
+          maxLength: 255
+          description: "New email address (optional)"
+      required: [ "id" ]
+      anyOf:
+        - required: [ "username" ]
+        - required: [ "email" ]
+      additionalProperties: false
+    metadata:
+      category: "authors"
+      operationId: "updateAuthor"
+      http:
+        method: "PUT"
+        path: "/authors/{id}"
+      pipeline: "update_author"
+
+  - name: "delete_author"
+    uri: "delete_author"
+    description: "Permanently delete an author and CASCADE delete all related articles and comments. Requires explicit confirmation."
+    inputSchema:
+      type: "object"
+      properties:
+        id:
+          type: "string"
+          format: "uuid"
+          description: "UUID of the author to delete"
+        confirm:
+          type: "boolean"
+          description: "Must be true to confirm deletion (safety check)"
+          enum: [true]
+      required: [ "id", "confirm" ]
+      additionalProperties: false
+    metadata:
+      category: "authors"
+      operationId: "deleteAuthor"
+      http:
+        method: "DELETE"
+        path: "/authors/{id}"
+      pipeline: "delete_author"
+      warnings:
+        - "CASCADE deletes all articles by this author"
+        - "CASCADE deletes all comments on those articles"
+        - "Operation is IRREVERSIBLE"
+
+  # --------------------------------------------------------------------------
+  # AUTHOR QUERY TOOLS
+  # --------------------------------------------------------------------------
+  - name: "list_authors"
+    uri: "list_authors"
+    description: "Retrieve paginated list of authors with optional filtering, full-text search, and statistics (article count, comment count, latest publication)."
+    inputSchema:
+      type: "object"
+      properties:
+        search_author:
+          type: "string"
+          description: "Wildcard search in username or email (case-insensitive)"
+        search_content:
+          type: "string"
+          description: "Full-text search in author's article titles/content (PostgreSQL tsvector)"
+        created_after:
+          type: "string"
+          format: "date-time"
+          description: "Filter authors created after this date (ISO 8601)"
+        created_before:
+          type: "string"
+          format: "date-time"
+          description: "Filter authors created before this date (ISO 8601)"
+        has_published:
+          type: "boolean"
+          description: "Filter authors with published articles"
+        min_articles:
+          type: "integer"
+          minimum: 0
+          description: "Minimum number of articles"
+        min_comments:
+          type: "integer"
+          minimum: 0
+          description: "Minimum number of comments on author's articles"
+        sort:
+          type: "string"
+          enum: ["username", "email", "created_at", "article_count"]
+          default: "created_at"
+          description: "Sort field"
+        sort_dir:
+          type: "string"
+          enum: ["asc", "desc"]
+          default: "desc"
+          description: "Sort direction"
+        limit:
+          type: "integer"
+          minimum: 1
+          maximum: 100
+          default: 50
+          description: "Number of authors per page"
+        page:
+          type: "integer"
+          minimum: 1
+          default: 1
+          description: "Page number"
+      additionalProperties: false
+    metadata:
+      category: "authors"
+      operationId: "listAuthors"
+      http:
+        method: "GET"
+        path: "/authors"
+      pipeline: "list_authors"
+
+  - name: "author_details"
+    uri: "author_details"
+    description: "Get detailed information about a specific author with comprehensive statistics (total/published/draft articles, comments, avg article length)."
+    inputSchema:
+      type: "object"
+      properties:
+        id:
+          type: "string"
+          format: "uuid"
+          description: "UUID of the author"
+        include_articles:
+          type: "boolean"
+          default: false
+          description: "Include recent articles in response"
+        articles_limit:
+          type: "integer"
+          minimum: 1
+          maximum: 20
+          default: 5
+          description: "Number of recent articles to include"
+      required: [ "id" ]
+      additionalProperties: false
+    metadata:
+      category: "authors"
+      operationId: "getAuthorById"
+      http:
+        method: "GET"
+        path: "/authors/{id}"
+      pipeline: "author_details"
+
+  # --------------------------------------------------------------------------
+  # ARTICLE TOOLS (CRUD)
+  # --------------------------------------------------------------------------
+  - name: "create_article"
+    uri: "create_article"
+    description: "Create a new article (draft or published). Can set future publish_date for scheduled publishing."
+    inputSchema:
+      type: "object"
+      properties:
+        title:
+          type: "string"
+          maxLength: 255
+          minLength: 1
+          description: "Title of the article"
+        content:
+          type: "string"
+          minLength: 10
+          description: "Content of the article (minimum 10 characters)"
+        author_id:
+          type: "string"
+          format: "uuid"
+          description: "UUID of the author (must exist)"
+        is_published:
+          type: "boolean"
+          default: false
+          description: "Publication status (false = draft)"
+        publish_date:
+          type: "string"
+          format: "date-time"
+          description: "Publication date (optional, can be future date)"
+        tags:
+          type: "array"
+          items:
+            type: "string"
+            maxLength: 50
+          description: "Optional tags for categorization"
+      required: [ "title", "content", "author_id" ]
+      additionalProperties: false
+    metadata:
+      category: "articles"
+      operationId: "createArticle"
+      http:
+        method: "POST"
+        path: "/articles"
+      pipeline: "create_article"
+
+  - name: "update_article"
+    uri: "update_article"
+    description: "Update an existing article's title, content, or publication status. At least one field must be provided. Updates updated_at timestamp automatically."
+    inputSchema:
+      type: "object"
+      properties:
+        id:
+          type: "string"
+          format: "uuid"
+          description: "UUID of the article to update"
+        title:
+          type: "string"
+          maxLength: 255
+          minLength: 1
+          description: "New title (optional)"
+        content:
+          type: "string"
+          minLength: 10
+          description: "New content (optional)"
+        is_published:
+          type: "boolean"
+          description: "New publication status (optional)"
+        publish_date:
+          type: "string"
+          format: "date-time"
+          description: "New publication date (optional)"
+      required: [ "id" ]
+      anyOf:
+        - required: [ "title" ]
+        - required: [ "content" ]
+        - required: [ "is_published" ]
+        - required: [ "publish_date" ]
+      additionalProperties: false
+    metadata:
+      category: "articles"
+      operationId: "updateArticle"
+      http:
+        method: "PUT"
+        path: "/articles/{id}"
+      pipeline: "update_article"
+
+  - name: "list_articles_by_author"
+    uri: "list_articles_by_author"
+    description: "Get all articles by a specific author with advanced filtering (full-text search, date ranges, comment counts, content length). Includes article preview, statistics, and comment engagement."
+    inputSchema:
+      type: "object"
+      properties:
+        author_id:
+          type: "string"
+          format: "uuid"
+          description: "UUID of the author"
+        search_content:
+          type: "string"
+          description: "Full-text search in title and content (PostgreSQL tsvector with ranking)"
+        published:
+          type: "boolean"
+          description: "Filter by publication status (true=published, false=drafts)"
+        created_after:
+          type: "string"
+          format: "date-time"
+          description: "Filter articles created after this date"
+        created_before:
+          type: "string"
+          format: "date-time"
+          description: "Filter articles created before this date"
+        updated_after:
+          type: "string"
+          format: "date-time"
+          description: "Filter articles updated after this date"
+        min_comments:
+          type: "integer"
+          minimum: 0
+          description: "Minimum number of comments"
+        max_comments:
+          type: "integer"
+          minimum: 0
+          description: "Maximum number of comments"
+        content_length_min:
+          type: "integer"
+          minimum: 0
+          description: "Minimum content length in characters"
+        content_length_max:
+          type: "integer"
+          minimum: 0
+          description: "Maximum content length in characters"
+        sort:
+          type: "string"
+          enum: ["created_at", "publish_date", "updated_at", "title", "comment_count", "content_length"]
+          default: "publish_date"
+          description: "Sort field (supports search relevance ranking)"
+        sort_dir:
+          type: "string"
+          enum: ["asc", "desc"]
+          default: "desc"
+          description: "Sort direction"
+        limit:
+          type: "integer"
+          minimum: 1
+          maximum: 100
+          default: 20
+          description: "Number of articles per page"
+        page:
+          type: "integer"
+          minimum: 1
+          default: 1
+          description: "Page number"
+      required: [ "author_id" ]
+      additionalProperties: false
+    metadata:
+      category: "articles"
+      operationId: "getArticlesByAuthor"
+      http:
+        method: "GET"
+        path: "/authors/{author_id}/articles"
+      pipeline: "list_articles_by_author"
+
+  # --------------------------------------------------------------------------
+  # COMMENT TOOLS (CRUD)
+  # --------------------------------------------------------------------------
+  - name: "comment_on_article"
+    uri: "comment_on_article"
+    description: "Add a comment to an article. Article must be published unless allow_on_unpublished is true (admin only). Input is sanitized to prevent XSS."
+    inputSchema:
+      type: "object"
+      properties:
+        article_id:
+          type: "string"
+          format: "uuid"
+          description: "UUID of the article"
+        author_name:
+          type: "string"
+          maxLength: 255
+          minLength: 1
+          description: "Name of the commenter"
+        author_email:
+          type: "string"
+          format: "email"
+          maxLength: 255
+          description: "Email of the commenter (optional, for notifications)"
+        content:
+          type: "string"
+          minLength: 1
+          maxLength: 2000
+          description: "Content of the comment"
+        notify_on_reply:
+          type: "boolean"
+          default: false
+          description: "Enable email notifications for replies"
+        allow_on_unpublished:
+          type: "boolean"
+          default: false
+          description: "Allow commenting on unpublished articles (admin only)"
+      required: [ "article_id", "author_name", "content" ]
+      additionalProperties: false
+    metadata:
+      category: "comments"
+      operationId: "createComment"
+      http:
+        method: "POST"
+        path: "/comments"
+      pipeline: "comment_on_article"
+
+  - name: "update_comment"
+    uri: "update_comment"
+    description: "Update a comment's content with edit history tracking. Edit reason is stored in metadata."
+    inputSchema:
+      type: "object"
+      properties:
+        id:
+          type: "string"
+          format: "uuid"
+          description: "UUID of the comment to update"
+        content:
+          type: "string"
+          minLength: 1
+          maxLength: 2000
+          description: "New content of the comment"
+        edit_reason:
+          type: "string"
+          maxLength: 255
+          description: "Reason for edit (optional, displayed as edit history)"
+      required: [ "id" ]
+      anyOf:
+        - required: [ "content" ]
+      additionalProperties: false
+    metadata:
+      category: "comments"
+      operationId: "updateComment"
+      http:
+        method: "PUT"
+        path: "/comments/{id}"
+      pipeline: "update_comment"
+
+  - name: "list_comments_by_article"
+    uri: "list_comments_by_article"
+    description: "Get all comments for a specific article with advanced filtering (full-text search, date ranges, email presence, content length). Includes statistics (avg length, email percentage)."
+    inputSchema:
+      type: "object"
+      properties:
+        article_id:
+          type: "string"
+          format: "uuid"
+          description: "UUID of the article"
+        search_comment:
+          type: "string"
+          description: "Full-text search in comment content (PostgreSQL tsvector)"
+        author_email:
+          type: "string"
+          format: "email"
+          description: "Filter by commenter email (exact match)"
+        created_after:
+          type: "string"
+          format: "date-time"
+          description: "Filter comments created after this date"
+        created_before:
+          type: "string"
+          format: "date-time"
+          description: "Filter comments created before this date"
+        has_email:
+          type: "boolean"
+          description: "Filter by email presence (true=with email, false=without)"
+        min_length:
+          type: "integer"
+          minimum: 0
+          description: "Minimum comment length in characters"
+        max_length:
+          type: "integer"
+          minimum: 0
+          description: "Maximum comment length in characters"
+        sort:
+          type: "string"
+          enum: ["comment_date", "created_at", "author_name", "content_length"]
+          default: "comment_date"
+          description: "Sort field"
+        sort_dir:
+          type: "string"
+          enum: ["asc", "desc"]
+          default: "desc"
+          description: "Sort direction"
+        limit:
+          type: "integer"
+          minimum: 1
+          maximum: 100
+          default: 50
+          description: "Number of comments per page"
+        page:
+          type: "integer"
+          minimum: 1
+          default: 1
+          description: "Page number"
+      required: [ "article_id" ]
+      additionalProperties: false
+    metadata:
+      category: "comments"
+      operationId: "listCommentsByArticle"
+      http:
+        method: "GET"
+        path: "/articles/{article_id}/comments"
+      pipeline: "list_comments_by_article"
+
+  # --------------------------------------------------------------------------
+  # STATISTICS AND REPORTING TOOLS
+  # --------------------------------------------------------------------------
+  - name: "stats_overview"
+    uri: "stats_overview"
+    description: "Comprehensive blog system statistics with filtering options. Includes author stats, article stats, comment stats, engagement metrics, and calculated ratios (publication rate, draft ratio, email percentage, comments per article)."
+    inputSchema:
+      type: "object"
+      properties:
+        search_content:
+          type: "string"
+          description: "Filter statistics by content search (affects article-related stats)"
+        search_comment:
+          type: "string"
+          description: "Filter statistics by comment search (affects comment-related stats)"
+        timeframe:
+          type: "string"
+          enum: ["day", "week", "month", "quarter", "year", "all"]
+          default: "all"
+          description: "Time period filter"
+        author_id:
+          type: "string"
+          format: "uuid"
+          description: "Filter statistics for specific author only"
+      additionalProperties: false
+    metadata:
+      category: "statistics"
+      operationId: "getStatsOverview"
+      http:
+        method: "GET"
+        path: "/stats/overview"
+      pipeline: "stats_overview"
+
+  # --------------------------------------------------------------------------
+  # DOCUMENTATION TOOLS (NEW)
+  # --------------------------------------------------------------------------
+  - name: "get_api_documentation"
+    uri: "get_api_documentation"
+    description: "Get complete API documentation including quick start guide, endpoint reference, and usage examples."
+    inputSchema:
+      type: "object"
+      properties:
+        format:
+          type: "string"
+          enum: ["markdown", "html", "plain"]
+          default: "markdown"
+          description: "Documentation format"
+      additionalProperties: false
+    metadata:
+      category: "documentation"
+      operationId: "getApiDocumentation"
+      http:
+        method: "GET"
+        path: "/docs/api"
+      static_resource: "API_DOCUMENTATION.md"
+
+  - name: "get_openapi_spec"
+    uri: "get_openapi_spec"
+    description: "Get the complete OpenAPI 3.0 specification for the Blog API. Compatible with Swagger UI, Redoc, and code generators."
+    inputSchema:
+      type: "object"
+      properties:
+        format:
+          type: "string"
+          enum: ["yaml", "json"]
+          default: "yaml"
+          description: "Specification format"
+      additionalProperties: false
+    metadata:
+      category: "documentation"
+      operationId: "getOpenAPISpec"
+      http:
+        method: "GET"
+        path: "/docs/openapi"
+      static_resource: "openapi-blog-api.yaml"
+
+  - name: "get_postman_collection"
+    uri: "get_postman_collection"
+    description: "Get the complete Postman Collection v2.1 with all endpoints, examples, and environment variables configured."
+    inputSchema:
+      type: "object"
+      additionalProperties: false
+    metadata:
+      category: "documentation"
+      operationId: "getPostmanCollection"
+      http:
+        method: "GET"
+        path: "/docs/postman"
+      static_resource: "postman-api-complete.json"
+
+# ==============================================================================
+# RESOURCE TEMPLATES
+# ==============================================================================
+resourceTemplates:
+  # --------------------------------------------------------------------------
+  # AUTHORS
+  # --------------------------------------------------------------------------
+  - uriTemplate: "list_authors{?page,limit,search_author,search_content,created_after,created_before,has_published,min_articles,min_comments,sort,sort_dir}"
+    name: "Authors Collection"
+    description: "Paginated collection of authors with optional filtering, full-text search, and comprehensive statistics"
+    mimeType: "application/json"
+    metadata:
+      category: "authors"
+      operationId: "getAuthors"
+      http:
+        method: "GET"
+        path: "/authors"
+      pipeline: "list_authors"
+      parameters:
+        page: { type: "integer", min: 1, default: 1 }
+        limit: { type: "integer", min: 1, max: 100, default: 50 }
+        search_author: { type: "string", optional: true }
+        search_content: { type: "string", optional: true }
+        created_after: { type: "string", format: "date-time", optional: true }
+        created_before: { type: "string", format: "date-time", optional: true }
+        has_published: { type: "boolean", optional: true }
+        min_articles: { type: "integer", min: 0, optional: true }
+        min_comments: { type: "integer", min: 0, optional: true }
+        sort: { type: "string", enum: ["username", "email", "created_at", "article_count"], default: "created_at", optional: true }
+        sort_dir: { type: "string", enum: ["asc", "desc"], default: "desc", optional: true }
+
+  - uriTemplate: "author_details/{id}{?include_articles,articles_limit}"
+    name: "Author by ID"
+    description: "Detailed author information with statistics (total/published/draft articles, comments, avg article length) and optional recent articles"
+    mimeType: "application/json"
+    metadata:
+      category: "authors"
+      operationId: "getAuthorById"
+      http:
+        method: "GET"
+        path: "/authors/{id}"
+      pipeline: "author_details"
+      parameters:
+        id: { type: "string", format: "uuid", required: true }
+        include_articles: { type: "boolean", default: false, optional: true }
+        articles_limit: { type: "integer", min: 1, max: 20, default: 5, optional: true }
+
+  # --------------------------------------------------------------------------
+  # ARTICLES
+  # --------------------------------------------------------------------------
+  - uriTemplate: "list_articles_by_author/{author_id}{?page,limit,search_content,published,created_after,created_before,updated_after,min_comments,max_comments,content_length_min,content_length_max,sort,sort_dir}"
+    name: "Advanced Articles by Author"
+    description: "Advanced article filtering by author with full-text search, statistics, comprehensive filtering (date ranges, comment counts, content length), and relevance ranking"
+    mimeType: "application/json"
+    metadata:
+      category: "articles"
+      operationId: "getAdvancedArticlesByAuthor"
+      http:
+        method: "GET"
+        path: "/authors/{author_id}/articles/advanced"
+      pipeline: "list_articles_by_author"
+      parameters:
+        author_id: { type: "string", format: "uuid", required: true }
+        page: { type: "integer", min: 1, default: 1, optional: true }
+        limit: { type: "integer", min: 1, max: 100, default: 20, optional: true }
+        search_content: { type: "string", optional: true }
+        published: { type: "boolean", optional: true }
+        created_after: { type: "string", format: "date-time", optional: true }
+        created_before: { type: "string", format: "date-time", optional: true }
+        updated_after: { type: "string", format: "date-time", optional: true }
+        min_comments: { type: "integer", min: 0, optional: true }
+        max_comments: { type: "integer", min: 0, optional: true }
+        content_length_min: { type: "integer", min: 0, optional: true }
+        content_length_max: { type: "integer", min: 0, optional: true }
+        sort: { type: "string", enum: ["created_at", "publish_date", "updated_at", "title", "comment_count", "content_length"], default: "publish_date", optional: true }
+        sort_dir: { type: "string", enum: ["asc", "desc"], default: "desc", optional: true }
+
+  # --------------------------------------------------------------------------
+  # COMMENTS
+  # --------------------------------------------------------------------------
+  - uriTemplate: "list_comments_by_article/{article_id}{?page,limit,search_comment,author_email,created_after,created_before,has_email,min_length,max_length,sort,sort_dir}"
+    name: "Comments by Article"
+    description: "Paginated collection of comments for an article with advanced filtering (full-text search, date ranges, email presence, content length) and statistics"
+    mimeType: "application/json"
+    metadata:
+      category: "comments"
+      operationId: "getCommentsByArticle"
+      http:
+        method: "GET"
+        path: "/articles/{article_id}/comments"
+      pipeline: "list_comments_by_article"
+      parameters:
+        article_id: { type: "string", format: "uuid", required: true }
+        page: { type: "integer", min: 1, default: 1, optional: true }
+        limit: { type: "integer", min: 1, max: 100, default: 50, optional: true }
+        search_comment: { type: "string", optional: true }
+        author_email: { type: "string", format: "email", optional: true }
+        created_after: { type: "string", format: "date-time", optional: true }
+        created_before: { type: "string", format: "date-time", optional: true }
+        has_email: { type: "boolean", optional: true }
+        min_length: { type: "integer", min: 0, optional: true }
+        max_length: { type: "integer", min: 0, optional: true }
+        sort: { type: "string", enum: ["comment_date", "created_at", "author_name", "content_length"], default: "comment_date", optional: true }
+        sort_dir: { type: "string", enum: ["asc", "desc"], default: "desc", optional: true }
+
+  # --------------------------------------------------------------------------
+  # STATISTICS
+  # --------------------------------------------------------------------------
+  - uriTemplate: "stats_overview{?search_content,search_comment,timeframe,author_id}"
+    name: "Blog Statistics Overview"
+    description: "Comprehensive blog system statistics with filtering options, engagement metrics, and calculated ratios (publication rate, draft ratio, email percentage)"
+    mimeType: "application/json"
+    metadata:
+      category: "statistics"
+      operationId: "getStatsOverview"
+      http:
+        method: "GET"
+        path: "/stats/overview"
+      pipeline: "stats_overview"
+      parameters:
+        search_content: { type: "string", optional: true }
+        search_comment: { type: "string", optional: true }
+        timeframe: { type: "string", enum: ["day", "week", "month", "quarter", "year", "all"], default: "all", optional: true }
+        author_id: { type: "string", format: "uuid", optional: true }
+
+# ==============================================================================
+# STATIC RESOURCES (JSON Schemas, Documentation, System Info)
+# ==============================================================================
+resources:
+  # --------------------------------------------------------------------------
+  # JSON SCHEMAS (for validation)
+  # --------------------------------------------------------------------------
+  - uri: "schema://author"
+    name: "Author JSON Schema"
+    description: "JSON Schema definition for Author objects with validation rules (username pattern, email format, field constraints)"
+    mimeType: "application/schema+json"
+    metadata:
+      category: "schemas"
+      version: "1.0.0"
+      fields:
+        - "id (UUID, auto-generated)"
+        - "username (3-255 chars, alphanumeric + underscores)"
+        - "email (valid email format, unique)"
+        - "created_at (timestamp, auto-generated)"
+
+  - uri: "schema://article"
+    name: "Article JSON Schema"
+    description: "JSON Schema definition for Article objects with validation rules (title length, content minimum, publication status)"
+    mimeType: "application/schema+json"
+    metadata:
+      category: "schemas"
+      version: "1.0.0"
+      fields:
+        - "id (UUID, auto-generated)"
+        - "title (1-255 chars)"
+        - "content (min 10 chars)"
+        - "author_id (UUID, foreign key)"
+        - "is_published (boolean)"
+        - "publish_date (timestamp, nullable)"
+        - "created_at/updated_at (timestamps, auto-managed)"
+
+  - uri: "schema://comment"
+    name: "Comment JSON Schema"
+    description: "JSON Schema definition for Comment objects with validation rules (author name, content length, email format)"
+    mimeType: "application/schema+json"
+    metadata:
+      category: "schemas"
+      version: "1.0.0"
+      fields:
+        - "id (UUID, auto-generated)"
+        - "article_id (UUID, foreign key)"
+        - "author_name (1-255 chars)"
+        - "author_email (email format, optional)"
+        - "content (1-2000 chars)"
+        - "comment_date (timestamp, auto-generated)"
+
+  # --------------------------------------------------------------------------
+  # API DOCUMENTATION RESOURCES (NEW)
+  # --------------------------------------------------------------------------
+  - uri: "docs://api_documentation"
+    name: "Complete API Documentation"
+    description: "Comprehensive API documentation including quick start guide, endpoint reference, usage examples, integration guides, and troubleshooting"
+    mimeType: "text/markdown"
+    metadata:
+      category: "documentation"
+      version: "1.0.0"
+      file: "API_DOCUMENTATION.md"
+      sections:
+        - "Quick Start"
+        - "Endpoint Reference"
+        - "Demo Scenarios"
+        - "Code Generation"
+        - "Integration Examples"
+        - "Troubleshooting"
+
+  - uri: "docs://openapi_spec"
+    name: "OpenAPI 3.0 Specification"
+    description: "Complete OpenAPI 3.0.3 specification for the Blog API. Compatible with Swagger UI, Redoc, and code generators (TypeScript, Java, Python, etc.)"
+    mimeType: "application/yaml"
+    metadata:
+      category: "documentation"
+      version: "1.0.0"
+      file: "openapi-blog-api.yaml"
+      openapi_version: "3.0.3"
+      endpoints: 12
+      schemas: 20
+      reusable_parameters: 15
+      compatible_with:
+        - "Swagger UI"
+        - "Redoc"
+        - "OpenAPI Generator"
+        - "Postman (import)"
+
+  - uri: "docs://postman_collection"
+    name: "Postman Collection v2.1"
+    description: "Complete Postman Collection with all 12 endpoints, comprehensive examples, environment variables, and ready-to-use requests"
+    mimeType: "application/json"
+    metadata:
+      category: "documentation"
+      version: "2.1.0"
+      file: "postman-api-complete.json"
+      endpoints: 12
+      examples: 18
+      environment_variables:
+        - "url (http://localhost:8080)"
+        - "author_id (sample UUID)"
+        - "article_id (sample UUID)"
+        - "comment_id (sample UUID)"
+
+  - uri: "docs://api_spec_summary"
+    name: "API Specification Summary"
+    description: "Delivery summary with coverage statistics, feature highlights, and quality metrics for the Blog API specification"
+    mimeType: "text/markdown"
+    metadata:
+      category: "documentation"
+      version: "1.0.0"
+      file: "API_SPEC_SUMMARY.md"
+      coverage: "100% (12/12 endpoints)"
+      parameters_documented: "60+"
+      response_examples: "24+"
+
+  # --------------------------------------------------------------------------
+  # DATABASE SCHEMA
+  # --------------------------------------------------------------------------
+  - uri: "schema://database"
+    name: "Database Schema"
+    description: "Complete database schema with relationships and constraints (Authors, Articles, Comments tables with foreign keys and cascade deletes)"
+    mimeType: "application/sql"
+    metadata:
+      category: "schemas"
+      version: "1.0.0"
+      file: "infra/schema.sql"
+      tables:
+        - "Authors (id, username, email, created_at)"
+        - "Articles (id, title, content, author_id, is_published, publish_date, created_at, updated_at)"
+        - "Comments (id, article_id, author_name, author_email, content, comment_date, created_at)"
+      constraints:
+        - "Authors.username UNIQUE"
+        - "Authors.email UNIQUE"
+        - "Articles.author_id → Authors.id (CASCADE DELETE)"
+        - "Comments.article_id → Articles.id (CASCADE DELETE)"
+
+  # --------------------------------------------------------------------------
+  # USAGE EXAMPLES
+  # --------------------------------------------------------------------------
+  - uri: "docs://usage_examples"
+    name: "API Usage Examples"
+    description: "Collection of common usage examples and demo scenarios for the Blog API (create author, publish article, manage comments, analyze statistics)"
+    mimeType: "text/markdown"
+    metadata:
+      category: "documentation"
+      version: "1.0.0"
+      scenarios:
+        - name: "Create Author and First Article"
+          steps: 3
+          description: "Complete workflow from author creation to published article"
+        - name: "Search and Filter Content"
+          steps: 2
+          description: "Find authors and articles with advanced filtering"
+        - name: "Engagement Analysis"
+          steps: 3
+          description: "Analyze system statistics and comment engagement"
+        - name: "Cascade Delete Workflow"
+          steps: 2
+          description: "Understanding cascade delete behavior"
+
+  # --------------------------------------------------------------------------
+  # PIPELINE DOCUMENTATION
+  # --------------------------------------------------------------------------
+  - uri: "docs://pipeline_configuration"
+    name: "Pipeline Configuration Reference"
+    description: "Complete pipeline configuration documentation with DSL query examples, validation rules, and filter options from blog-pipelines.yaml"
+    mimeType: "application/yaml"
+    metadata:
+      category: "documentation"
+      version: "1.0.0"
+      file: "src/main/resources/config/blog-pipelines.yaml"
+      pipelines: 12
+      features:
+        - "Input validation and sanitization"
+        - "SQL query building with DSL"
+        - "Output formatting and pagination"
+        - "Full-text search with PostgreSQL tsvector"
+        - "Window functions for statistics"
+        - "Common Table Expressions (CTEs)"
+
+# ==============================================================================
+# PROMPT CAPABILITIES (For LLM/Claude context)
+# ==============================================================================
+prompts:
+  # --------------------------------------------------------------------------
+  # AUTHOR MANAGEMENT PROMPTS
+  # --------------------------------------------------------------------------
+  - name: "browse_authors"
+    description: "Browse and filter authors with statistics, search capabilities, and pagination. Supports wildcard search, full-text content search, date ranges, and engagement filters."
+    arguments:
+      - name: "search_author"
+        description: "Search term for username or email (case-insensitive wildcard)"
+        required: false
+      - name: "search_content"
+        description: "Search in author's article titles/content (full-text)"
+        required: false
+      - name: "created_after"
+        description: "Filter authors created after this date (ISO 8601)"
+        required: false
+      - name: "created_before"
+        description: "Filter authors created before this date (ISO 8601)"
+        required: false
+      - name: "has_published"
+        description: "Only show authors with published articles"
+        required: false
+      - name: "min_articles"
+        description: "Minimum number of articles"
+        required: false
+      - name: "min_comments"
+        description: "Minimum number of comments on author's articles"
+        required: false
+      - name: "sort"
+        description: "Sort by username, email, created_at, or article_count"
+        required: false
+        default: "created_at"
+      - name: "limit"
+        description: "Number of authors per page (1-100)"
+        required: false
+        default: 50
+      - name: "page"
+        description: "Page number"
+        required: false
+        default: 1
+    metadata:
+      category: "authors"
+      tools: [ "list_authors" ]
+      resources: [ "list_authors" ]
+      pipelines: [ "list_authors" ]
+      examples:
+        - "Show me all authors sorted by username"
+        - "Find authors created in the last month"
+        - "List authors with published articles"
+        - "Find prolific authors with at least 10 articles"
+
+  - name: "view_author_details"
+    description: "View detailed information about a specific author with comprehensive statistics (total/published/draft articles, comments, avg article length, latest publication) and optional recent articles."
+    arguments:
+      - name: "author_id"
+        description: "UUID of the author to view"
+        required: true
+      - name: "include_articles"
+        description: "Include recent articles in response"
+        required: false
+        default: false
+      - name: "articles_limit"
+        description: "Number of recent articles to include (1-20)"
+        required: false
+        default: 5
+    metadata:
+      category: "authors"
+      tools: [ "author_details", "list_articles_by_author" ]
+      resources: [ "author_details" ]
+      pipelines: [ "author_details" ]
+      examples:
+        - "Show me author details with statistics"
+        - "View author profile with recent articles"
+        - "Get comprehensive author analytics"
+
+  # --------------------------------------------------------------------------
+  # ARTICLE MANAGEMENT PROMPTS
+  # --------------------------------------------------------------------------
+  - name: "search_articles_by_author"
+    description: "Search and filter articles by a specific author with advanced options (full-text search, date ranges, comment counts, content length). Results include article preview, comment engagement, and search relevance ranking."
+    arguments:
+      - name: "author_id"
+        description: "UUID of the author"
+        required: true
+      - name: "search_content"
+        description: "Search term in article title or content (full-text with ranking)"
+        required: false
+      - name: "published"
+        description: "Filter by publication status (true=published, false=drafts)"
+        required: false
+      - name: "created_after"
+        description: "Filter articles created after this date"
+        required: false
+      - name: "created_before"
+        description: "Filter articles created before this date"
+        required: false
+      - name: "updated_after"
+        description: "Filter articles updated after this date"
+        required: false
+      - name: "min_comments"
+        description: "Minimum number of comments"
+        required: false
+      - name: "max_comments"
+        description: "Maximum number of comments"
+        required: false
+      - name: "content_length_min"
+        description: "Minimum content length in characters"
+        required: false
+      - name: "content_length_max"
+        description: "Maximum content length in characters"
+        required: false
+      - name: "sort"
+        description: "Sort by created_at, publish_date, updated_at, title, comment_count, or content_length"
+        required: false
+        default: "publish_date"
+      - name: "limit"
+        description: "Number of articles per page (1-100)"
+        required: false
+        default: 20
+      - name: "page"
+        description: "Page number"
+        required: false
+        default: 1
+    metadata:
+      category: "articles"
+      tools: [ "list_articles_by_author" ]
+      resources: [ "list_articles_by_author" ]
+      pipelines: [ "list_articles_by_author" ]
+      examples:
+        - "Show me all published articles by author John"
+        - "Find articles with more than 10 comments"
+        - "Search for articles about 'technology' by a specific author"
+        - "List recent articles with low engagement"
+
+  # --------------------------------------------------------------------------
+  # COMMENT MANAGEMENT PROMPTS
+  # --------------------------------------------------------------------------
+  - name: "analyze_article_comments"
+    description: "Analyze comments on a specific article with advanced filtering (full-text search, date ranges, email presence, content length) and statistics (avg length, email percentage)."
+    arguments:
+      - name: "article_id"
+        description: "UUID of the article"
+        required: true
+      - name: "search_comment"
+        description: "Search term in comment content (full-text)"
+        required: false
+      - name: "author_email"
+        description: "Filter by commenter email (exact match)"
+        required: false
+      - name: "created_after"
+        description: "Filter comments created after this date"
+        required: false
+      - name: "created_before"
+        description: "Filter comments created before this date"
+        required: false
+      - name: "has_email"
+        description: "Filter comments with or without email"
+        required: false
+      - name: "min_length"
+        description: "Minimum comment length in characters"
+        required: false
+      - name: "max_length"
+        description: "Maximum comment length in characters"
+        required: false
+      - name: "sort"
+        description: "Sort by comment_date, created_at, author_name, or content_length"
+        required: false
+        default: "comment_date"
+      - name: "limit"
+        description: "Number of comments per page (1-100)"
+        required: false
+        default: 50
+      - name: "page"
+        description: "Page number"
+        required: false
+        default: 1
+    metadata:
+      category: "comments"
+      tools: [ "list_comments_by_article" ]
+      resources: [ "list_comments_by_article" ]
+      pipelines: [ "list_comments_by_article" ]
+      examples:
+        - "Show me all comments on this article"
+        - "Find long comments (more than 500 characters)"
+        - "Analyze comment trends and engagement"
+        - "Filter comments by specific user email"
+
+  # --------------------------------------------------------------------------
+  # STATISTICS AND REPORTING PROMPTS
+  # --------------------------------------------------------------------------
+  - name: "analyze_blog_statistics"
+    description: "Generate comprehensive blog system statistics with optional filtering. Includes author stats, article stats (publication rate, draft ratio), comment stats (email percentage), engagement metrics, and most active author/article identification."
+    arguments:
+      - name: "search_content"
+        description: "Filter statistics by content search (affects article-related stats)"
+        required: false
+      - name: "search_comment"
+        description: "Filter statistics by comment search (affects comment-related stats)"
+        required: false
+      - name: "timeframe"
+        description: "Time period (day, week, month, quarter, year, all)"
+        required: false
+        default: "all"
+      - name: "author_id"
+        description: "Filter statistics for specific author only"
+        required: false
+    metadata:
+      category: "statistics"
+      tools: [ "stats_overview" ]
+      resources: [ "stats_overview" ]
+      pipelines: [ "stats_overview" ]
+      features:
+        - "Author statistics (total, active, newest/oldest)"
+        - "Article statistics (total, published, drafts, avg length)"
+        - "Comment statistics (total, unique commenters, avg length)"
+        - "Engagement metrics (most commented article, most active author)"
+        - "Calculated ratios (publication rate, draft ratio, email %, comments per article)"
+      examples:
+        - "Show me overall blog statistics"
+        - "Analyze blog activity for the last month"
+        - "Find the most active author and most commented article"
+        - "Generate engagement report with calculated metrics"
+
+  # --------------------------------------------------------------------------
+  # DOCUMENTATION ACCESS PROMPTS (NEW)
+  # --------------------------------------------------------------------------
+  - name: "access_api_documentation"
+    description: "Access comprehensive API documentation including quick start guides, endpoint reference, usage examples, integration guides, and troubleshooting."
+    arguments:
+      - name: "format"
+        description: "Documentation format (markdown, html, plain)"
+        required: false
+        default: "markdown"
+    metadata:
+      category: "documentation"
+      tools: [ "get_api_documentation" ]
+      resources: [ "docs://api_documentation" ]
+      examples:
+        - "Show me the API documentation"
+        - "How do I get started with this API?"
+        - "Show me usage examples"
+
+  - name: "access_technical_specs"
+    description: "Access technical specifications including OpenAPI spec, Postman collection, database schema, and pipeline configuration."
+    arguments:
+      - name: "spec_type"
+        description: "Type of specification (openapi, postman, database, pipelines)"
+        required: true
+    metadata:
+      category: "documentation"
+      tools: [ "get_openapi_spec", "get_postman_collection" ]
+      resources: [ "docs://openapi_spec", "docs://postman_collection", "schema://database", "docs://pipeline_configuration" ]
+      examples:
+        - "Get the OpenAPI specification"
+        - "Download Postman collection"
+        - "Show me the database schema"
+        - "View pipeline configuration"
+
