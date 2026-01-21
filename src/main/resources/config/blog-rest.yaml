@@ -27,11 +27,12 @@ capabilities:
 
 sources:
   blog-db:
-    type: jdbc
+    name: blog-db
     description: Blog DB PostgreSQL mode.
-    provider: io.cheshire.source.jdbc.JdbcDataSourceProviderFactory
-    schema: blog
+    factory: io.cheshire.source.jdbc.JdbcSourceProviderFactory
     config:
+      type: jdbc
+      schema: blog
       connection:
         url: jdbc:postgresql://localhost:5432/blog_db
         username: blog_user
@@ -48,10 +49,12 @@ sources:
 
 query-engines:
   jdbc:
-    engine: io.cheshire.query.engine.jdbc.JdbcQueryEngineFactory
-    sources:
-      - blog-db
+    name: jdbc
+    description: JDBC Query Engine
+    factory: io.cheshire.query.engine.jdbc.JdbcQueryEngineFactory
     config:
+      sources:
+        - blog-db
       defaultLimit: 100
       maxLimit: 10000
       timeoutMs: 30000

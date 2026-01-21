@@ -2,24 +2,27 @@ package io.blog.pipeline;
 
 import io.cheshire.core.constant.Key;
 import io.cheshire.query.engine.jdbc.JdbcQueryEngine;
-import io.cheshire.query.engine.jdbc.SqlQueryRequest;
+import io.cheshire.query.engine.jdbc.SqlQueryEngineRequest;
 import io.cheshire.query.engine.jdbc.SqlTemplateQueryBuilder;
 import io.cheshire.runtime.CheshireRuntimeError;
-import io.cheshire.source.jdbc.JdbcDataSourceProvider;
+import io.cheshire.source.jdbc.JdbcSourceProvider;
 import io.cheshire.spi.pipeline.Context;
 import io.cheshire.core.pipeline.MaterializedInput;
 import io.cheshire.core.pipeline.MaterializedOutput;
 import io.cheshire.spi.pipeline.exception.PipelineException;
 import io.cheshire.spi.pipeline.step.Executor;
 import io.cheshire.spi.query.engine.QueryEngine;
+import io.cheshire.spi.query.exception.QueryEngineException;
 import io.cheshire.spi.query.exception.QueryExecutionException;
-import io.cheshire.spi.query.result.MapQueryResult;
+import io.cheshire.spi.query.request.QueryEngineContext;
+import io.cheshire.spi.query.result.QueryEngineResult;
 import io.cheshire.spi.source.SourceProvider;
 import io.blog.BlogApp;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Instant;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Core executor for blog operations in the Cheshire pipeline.
@@ -40,9 +43,9 @@ import java.util.*;
  * <ol>
  *   <li>Extract DSL template from configuration</li>
  *   <li>Resolve runtime parameters from input payload</li>
- *   <li>Build {@link SqlQueryRequest} via {@link SqlTemplateQueryBuilder}</li>
+ *   <li>Build {@link SqlQueryEngineRequest} via {@link SqlTemplateQueryBuilder}</li>
  *   <li>Execute query through {@link JdbcQueryEngine}</li>
- *   <li>Map {@link MapQueryResult} to {@link MaterializedOutput}</li>
+ *   <li>Map {@link QueryEngineResult} to {@link MaterializedOutput}</li>
  * </ol>
  * <p>
  * Templates follow the domain-neutral DSL specification supporting:
@@ -117,7 +120,7 @@ public final class BlogExecutor implements Executor<MaterializedInput, Materiali
                     resolved.resolvedSql()
             );
 
-            final MapQueryResult result =
+            final QueryEngineResult result =
                     executeJdbcQuery(resolved.request(), executorInput);
 
             final LinkedHashMap<String, Object> data = toMap(result);
@@ -139,7 +142,7 @@ public final class BlogExecutor implements Executor<MaterializedInput, Materiali
      * <strong>Resolution sequence:</strong>
      * <ol>
      *   <li>Extract {@link JdbcQueryEngine} from input metadata</li>
-     *   <li>Resolve {@link JdbcDataSourceProvider} from sources</li>
+     *   <li>Resolve {@link JdbcSourceProvider} from sources</li>
      *   <li>Execute query and return results</li>
      * </ol>
      * <p>
@@ -148,14 +151,14 @@ public final class BlogExecutor implements Executor<MaterializedInput, Materiali
      *
      * @param query the resolved SQL query request with parameters
      * @param input materialized input containing engine and source metadata
-     * @return query execution results as {@link MapQueryResult}
+     * @return query execution results as {@link QueryEngineResult}
      * @throws QueryExecutionException if the query execution fails
      * @throws PipelineException       if engine or source provider is not found
      */
-    private MapQueryResult executeJdbcQuery(
-            final SqlQueryRequest query,
+    private QueryEngineResult executeJdbcQuery(
+            final SqlQueryEngineRequest query,
             final MaterializedInput input
-    ) throws QueryExecutionException, PipelineException {
+    ) throws QueryEngineException, PipelineException {
 
         final Optional<JdbcQueryEngine> engine =
                 input.getMetadata(Key.ENGINE.key(), JdbcQueryEngine.class);
@@ -166,10 +169,21 @@ public final class BlogExecutor implements Executor<MaterializedInput, Materiali
                 )
         );
 
-        final JdbcDataSourceProvider provider =
-                getSourceProvider(JdbcDataSourceProvider.class, input);
+        final JdbcSourceProvider provider =
+                getSourceProvider(JdbcSourceProvider.class, input);
 
-        return jdbc.execute(query, provider);
+        QueryEngineContext ctx = new QueryEngineContext(
+                "session-123",
+                "user-456",
+                "trace-789",
+                Map.of(),
+                List.of(provider),
+                new ConcurrentHashMap<>(),
+                Instant.now(),
+                Instant.now()
+        );
+
+        return jdbc.execute(query, ctx);
     }
 
     /**
@@ -189,24 +203,24 @@ public final class BlogExecutor implements Executor<MaterializedInput, Materiali
      * @return query results
      * @throws PipelineException if execution fails or engine type is unsupported
      */
-    private MapQueryResult executeQuery(final MaterializedInput input, final Context ctx)
-            throws PipelineException {
+    private QueryEngineResult executeQuery(final MaterializedInput input, final Context ctx)
+            throws QueryEngineException, PipelineException {
 
-        final QueryEngine<?, ?> engine =
+        final QueryEngine<?> engine =
                 input.require(Key.ENGINE.key(), QueryEngine.class);
 
         switch (engine) {
             case JdbcQueryEngine jdbc -> {
                 log.debug("Preparing JDBC-specific execution path");
-                final SqlQueryRequest query =
-                        new SqlQueryRequest("SELECT 1", Map.of());
+                final SqlQueryEngineRequest query =
+                        new SqlQueryEngineRequest("SELECT 1", Map.of(), "postgres");
                 try {
-                    final JdbcDataSourceProvider provider =
+                    final JdbcSourceProvider provider =
                             getSourceProvider(
-                                    JdbcDataSourceProvider.class,
+                                    JdbcSourceProvider.class,
                                     input
                             );
-                    return jdbc.execute(query, provider);
+                    return jdbc.execute(query, QueryEngineContext.empty());
                 } catch (final QueryExecutionException e) {
                     log.error("JDBC query execution failed", e);
                     throw new PipelineException(
@@ -224,7 +238,7 @@ public final class BlogExecutor implements Executor<MaterializedInput, Materiali
                         "Using generic execution path for engine type: {}",
                         engine.getClass()
                 );
-                return new MapQueryResult(List.of(), List.of());
+                return new QueryEngineResult(List.of(), List.of());
             }
         }
     }
@@ -237,7 +251,7 @@ public final class BlogExecutor implements Executor<MaterializedInput, Materiali
      *   <li>Extract query parameters from input data payload</li>
      *   <li>Parse DSL_QUERY JSON template</li>
      *   <li>Bind runtime parameters to template placeholders</li>
-     *   <li>Generate executable {@link SqlQueryRequest}</li>
+     *   <li>Generate executable {@link SqlQueryEngineRequest}</li>
      * </ol>
      * <p>
      * Parameters are extracted from the {@link Key#PAYLOAD_PARAMETERS} key
@@ -271,13 +285,13 @@ public final class BlogExecutor implements Executor<MaterializedInput, Materiali
                     BlogApp.stringify(queryParameters)
             );
 
-            final SqlQueryRequest request =
+            final SqlQueryEngineRequest request =
                     SqlTemplateQueryBuilder.buildQuery(
                             template,
                             queryParameters
                     );
 
-            return new ResolvedQuery(request, request.sql());
+            return new ResolvedQuery(request, request.sqlQuery());
 
         } catch (final Exception e) {
             log.error("Failed to resolve SQL template");
@@ -298,7 +312,7 @@ public final class BlogExecutor implements Executor<MaterializedInput, Materiali
      * <strong>Resolution flow:</strong>
      * <ol>
      *   <li>Extract sources map from metadata</li>
-     *   <li>Filter by target type (e.g., {@link JdbcDataSourceProvider})</li>
+     *   <li>Filter by target type (e.g., {@link JdbcSourceProvider})</li>
      *   <li>Return first matching provider</li>
      * </ol>
      * <p>
@@ -312,12 +326,12 @@ public final class BlogExecutor implements Executor<MaterializedInput, Materiali
      * @throws PipelineException       if sources map is not found in metadata
      * @throws CheshireRuntimeError if no provider of the target type is found
      */
-    private <T extends SourceProvider<?, ?>> T getSourceProvider(
+    private <T extends SourceProvider<?>> T getSourceProvider(
             final Class<T> targetSource,
             final MaterializedInput input
     ) throws PipelineException {
 
-        final Map<String, SourceProvider<?, ?>> sources =
+        final Map<String, SourceProvider<?>> sources =
                 input.getMetadata(Key.SOURCES.key(), Map.class)
                         .orElseThrow(() ->
                                 new PipelineException(
@@ -338,7 +352,7 @@ public final class BlogExecutor implements Executor<MaterializedInput, Materiali
     }
 
     /**
-     * Converts {@link MapQueryResult} to a standardized output format.
+     * Converts {@link QueryEngineResult} to a standardized output format.
      * <p>
      * <strong>Output structure:</strong>
      * <pre>{@code
@@ -362,7 +376,7 @@ public final class BlogExecutor implements Executor<MaterializedInput, Materiali
      * @param result query execution result from engine
      * @return map suitable for serialization to JSON response
      */
-    private LinkedHashMap<String, Object> toMap(final MapQueryResult result) {
+    private LinkedHashMap<String, Object> toMap(final QueryEngineResult result) {
 
         final LinkedHashMap<String, Object> count = new LinkedHashMap<>();
         count.put("total_found",
@@ -383,14 +397,14 @@ public final class BlogExecutor implements Executor<MaterializedInput, Materiali
     /**
      * Internal record holding a resolved query with its SQL representation.
      * <p>
-     * Used to pass both the parameterized {@link SqlQueryRequest} and the
+     * Used to pass both the parameterized {@link SqlQueryEngineRequest} and the
      * resolved SQL string through the execution pipeline for logging and debugging.
      *
      * @param request     the executable SQL query request with bound parameters
      * @param resolvedSql the final SQL string after parameter resolution
      */
     private record ResolvedQuery(
-            SqlQueryRequest request,
+            SqlQueryEngineRequest request,
             String resolvedSql
     ) {}
 }
