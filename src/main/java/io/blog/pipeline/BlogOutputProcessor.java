@@ -3,7 +3,7 @@ package io.blog.pipeline;
 import io.cheshire.spi.pipeline.Context;
 import io.cheshire.core.pipeline.MaterializedOutput;
 import io.cheshire.spi.pipeline.step.PostProcessor;
-import io.cheshire.spi.query.result.MapQueryResult;
+import io.cheshire.spi.query.result.QueryEngineResult;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Instant;
@@ -83,7 +83,7 @@ public final class BlogOutputProcessor implements PostProcessor<MaterializedOutp
     }
 
     /**
-     * Converts {@link MapQueryResult} to enriched output format with pagination.
+     * Converts {@link QueryEngineResult} to enriched output format with pagination.
      * <p>
      * <strong>Note:</strong> This method is currently unused but demonstrates
      * an alternative output format with enhanced pagination metadata.
@@ -107,7 +107,7 @@ public final class BlogOutputProcessor implements PostProcessor<MaterializedOutp
      * @param result query execution result from engine
      * @return map with pagination envelope
      */
-    private LinkedHashMap<String, Object> toMap(final MapQueryResult result) {
+    private LinkedHashMap<String, Object> toMap(final QueryEngineResult result) {
 
         final Map<String, Object> pagination = new LinkedHashMap<>();
         pagination.put("totalRows", result.rowCount());
